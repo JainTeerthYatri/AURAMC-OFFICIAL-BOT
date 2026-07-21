@@ -1,15 +1,15 @@
 require('dotenv').config();
 const { 
-  REST,
-  Routes, 
-  SlashCommandBuilder, 
   Client, 
   GatewayIntentBits, 
   PermissionFlagsBits, 
   ActionRowBuilder, 
   ButtonBuilder, 
   ButtonStyle, 
-  ChannelType 
+  ChannelType,
+  REST,
+  Routes,
+  SlashCommandBuilder
 } = require('discord.js');
 const express = require('express');
 
@@ -38,19 +38,56 @@ const client = new Client({
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}!`);
 
-  // Commands definition yahi rakh lein ya register function chala dein
+  // Bot start hote hi commands automatically register ho jayengi
   const commands = [
-    { name: 'say', description: 'Kuch bhi bulwayein bot se', options: [...] },
-    // ... baaki commands
-  ];
+    new SlashCommandBuilder()
+      .setName('say')
+      .setDescription('Kuch bhi bulwayein bot se')
+      .addStringOption(option => 
+        option.setName('message').setDescription('Jo message bot ko bolna hai').setRequired(true)),
+
+    new SlashCommandBuilder()
+      .setName('lock')
+      .setDescription('Current channel ko lock karein')
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+
+    new SlashCommandBuilder()
+      .setName('lockdown')
+      .setDescription('Poore server ke channels ko lock/unlock karein')
+      .addStringOption(option =>
+        option.setName('action')
+          .setDescription('Lock ya Unlock')
+          .setRequired(true)
+          .addChoices(
+            { name: 'Lock', value: 'lock' },
+            { name: 'Unlock', value: 'unlock' }
+          ))
+      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+    new SlashCommandBuilder()
+      .setName('purge')
+      .setDescription('Messages delete karein')
+      .addIntegerOption(option =>
+        option.setName('count')
+          .setDescription('Kitne messages delete karne hain (1-100)')
+          .setRequired(true))
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+    new SlashCommandBuilder()
+      .setName('ticket')
+      .setDescription('Support ticket panel bhejta hai')
+      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+  ].map(command => command.toJSON());
 
   const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
+
   try {
+    console.log('Started refreshing application (/) commands.');
     await rest.put(
       Routes.applicationCommands(process.env.CLIENT_ID),
       { body: commands },
     );
-    console.log('Slash commands successfully registered on startup!');
+    console.log('Successfully reloaded application (/) commands.');
   } catch (error) {
     console.error(error);
   }
@@ -58,13 +95,11 @@ client.once('ready', async () => {
 
 // Slash Commands & Interactions Handler
 client.on('interactionCreate', async interaction => {
-  // 1. Button Interactions (Ticket System ke liye)
   if (interaction.isButton()) {
     if (interaction.customId === 'create_ticket') {
       const guild = interaction.guild;
       const userName = interaction.user.username;
       
-      // Ticket channel create karna
       const ticketChannel = await guild.channels.create({
         name: `ticket-${userName}`,
         type: ChannelType.GuildText,
@@ -101,25 +136,21 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  // 2. Slash Commands Handler
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName, options, channel, guild } = interaction;
 
-  // /say command
   if (commandName === 'say') {
     const msg = options.getString('message');
     await interaction.channel.send(msg);
     await interaction.reply({ content: 'Message bhej diya gaya hai!', ephemeral: true });
   }
 
-  // /lock command
   else if (commandName === 'lock') {
     await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: false });
     await interaction.reply('Yeh channel lock kar diya gaya hai! 🔒');
   }
 
-  // /lockdown command
   else if (commandName === 'lockdown') {
     const action = options.getString('action');
     const channels = guild.channels.cache.filter(c => c.type === ChannelType.GuildText);
@@ -137,7 +168,6 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  // /purge command
   else if (commandName === 'purge') {
     const count = options.getInteger('count');
     if (count < 1 || count > 100) {
@@ -147,7 +177,6 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: `${count} messages delete kar diye gaye hain.`, ephemeral: true });
   }
 
-  // /ticket command (Panel send karega)
   else if (commandName === 'ticket') {
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
