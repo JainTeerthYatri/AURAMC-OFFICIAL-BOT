@@ -126,7 +126,7 @@ client.once('clientReady', async () => {
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
     new SlashCommandBuilder()
-      .setName('gcreate')
+      .setName('GIVEAWAY')
       .setDescription('Starts a giveaway')
       .addStringOption(option => option.setName('prize').setDescription('The prize being given away').setRequired(true))
       .addIntegerOption(option => option.setName('duration').setDescription('Duration in minutes').setRequired(true))
@@ -346,7 +346,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: 'Poll created successfully!', flags: MessageFlags.Ephemeral });
   }
 
-  else if (commandName === 'gcreate') {
+  else if (commandName === 'GIVEAWAY') {
     const prize = options.getString('prize');
     const durationMinutes = options.getInteger('duration');
 
