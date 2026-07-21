@@ -9,7 +9,8 @@ const {
   ChannelType,
   REST,
   Routes,
-  SlashCommandBuilder
+  SlashCommandBuilder,
+  MessageFlags // <--- Yeh jodein
 } = require('discord.js');
 const express = require('express');
 
@@ -131,7 +132,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.customId === 'close_ticket') {
-      await interaction.reply({ content: 'Ticket 5 seconds mein band ho raha hai...' });
+      await interaction.reply({ content: `Ticket has been created Successfully: ${ticketChannel}`, flags: MessageFlags.Ephemeral });
       setTimeout(() => interaction.channel.delete(), 5000);
     }
   }
@@ -143,12 +144,12 @@ client.on('interactionCreate', async interaction => {
   if (commandName === 'say') {
     const msg = options.getString('message');
     await interaction.channel.send(msg);
-    await interaction.reply({ content: 'Message bhej diya gaya hai!', ephemeral: true });
+    await interaction.reply({ content: 'Message sent successfully!', flags: MessageFlags.Ephemeral });
   }
 
   else if (commandName === 'lock') {
     await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: false });
-    await interaction.reply('Yeh channel lock kar diya gaya hai! 🔒');
+    await interaction.reply('THIS CHANNEL HAS BEEN LOCKED SUCCESSLY! 🔒');
   }
 
   else if (commandName === 'lockdown') {
@@ -171,10 +172,10 @@ client.on('interactionCreate', async interaction => {
   else if (commandName === 'purge') {
     const count = options.getInteger('count');
     if (count < 1 || count > 100) {
-      return interaction.reply({ content: 'Kripya 1 se 100 ke beech ki sankhya dalein!', ephemeral: true });
+      return interaction.reply({ content: 'Plz chooze no. between 1 to 100!', flags: MessageFlags.Ephemeral });
     }
     await channel.bulkDelete(count, true);
-    await interaction.reply({ content: `${count} messages delete kar diye gaye hain.`, ephemeral: true });
+    await interaction.reply({ content: `${count} messages had been deleted.`, flags: MessageFlags.Ephemeral });
   }
 
   else if (commandName === 'ticket') {
@@ -189,7 +190,7 @@ client.on('interactionCreate', async interaction => {
       content: '**Support Ticket System**\nNeeche diye gaye button par click karke apna support ticket banayein:',
       components: [row]
     });
-    await interaction.reply({ content: 'Ticket panel successfully bhej diya gaya hai!', ephemeral: true });
+    await interaction.reply({ content: 'Ticket panel has been created successfully!', flags: MessageFlags.Ephemeral });
   }
 });
 
