@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { 
-  REST, 
+  REST,
   Routes, 
   SlashCommandBuilder, 
   Client, 
