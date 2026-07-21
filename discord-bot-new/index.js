@@ -1,5 +1,9 @@
 require('dotenv').config();
 const { 
+  REST, 
+  Routes, 
+  SlashCommandBuilder, 
+  PermissionFlagsBits,
   Client, 
   GatewayIntentBits, 
   PermissionFlagsBits, 
@@ -32,8 +36,25 @@ const client = new Client({
   ]
 });
 
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}!`);
+
+  // Commands definition yahi rakh lein ya register function chala dein
+  const commands = [
+    { name: 'say', description: 'Kuch bhi bulwayein bot se', options: [...] },
+    // ... baaki commands
+  ];
+
+  const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
+  try {
+    await rest.put(
+      Routes.applicationCommands(process.env.CLIENT_ID),
+      { body: commands },
+    );
+    console.log('Slash commands successfully registered on startup!');
+  } catch (error) {
+    console.error(error);
+  }
 });
 
 // Slash Commands & Interactions Handler
