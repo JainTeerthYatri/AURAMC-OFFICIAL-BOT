@@ -11,7 +11,9 @@ const {
   Routes,
   SlashCommandBuilder,
   MessageFlags,
-  EmbedBuilder
+  EmbedBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder
 } = require('discord.js');
 const express = require('express');
 const axios = require('axios');
@@ -87,8 +89,8 @@ client.once('clientReady', async () => {
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
     new SlashCommandBuilder()
-      .setName('ticket')
-      .setDescription('Sends the support ticket panel')
+      .setName('ticketsetup')
+      .setDescription('Sends the advanced dropdown support ticket panel')
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
@@ -260,14 +262,21 @@ client.on('messageCreate', async message => {
 
 // Interactions Handler
 client.on('interactionCreate', async interaction => {
-  if (interaction.isButton()) {
-    // Ticket System buttons
-    if (interaction.customId === 'create_ticket') {
+  // Handle String Select Menu (Advanced Ticket Categories)
+  if (interaction.isStringSelectMenu()) {
+    if (interaction.customId === 'ticket_select_menu') {
+      const selectedCategory = interaction.values[0];
       const guild = interaction.guild;
       const userName = interaction.user.username;
-      
+
+      // Check if user already has an open ticket of this type to prevent spamming channels
+      const existingChannel = guild.channels.cache.find(c => c.name === `ticket-${selectedCategory}-${userName.toLowerCase()}`);
+      if (existingChannel) {
+        return interaction.reply({ content: `You already have an open ticket in ${existingChannel}!`, flags: MessageFlags.Ephemeral });
+      }
+
       const ticketChannel = await guild.channels.create({
-        name: `ticket-${userName}`,
+        name: `ticket-${selectedCategory}-${userName}`,
         type: ChannelType.GuildText,
         permissionOverwrites: [
           { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -279,14 +288,23 @@ client.on('interactionCreate', async interaction => {
         new ButtonBuilder().setCustomId('close_ticket').setLabel('🔒 Close Ticket').setStyle(ButtonStyle.Danger)
       );
 
+      const embed = new EmbedBuilder()
+        .setColor('#5865F2')
+        .setTitle(`Support Ticket: ${selectedCategory.toUpperCase()}`)
+        .setDescription(`Hello ${interaction.user},\nThank you for reaching out to support. Please describe your issue in detail below, and our team will assist you shortly.`)
+        .setTimestamp();
+
       await ticketChannel.send({
-        content: `Hello ${interaction.user}, our support team will be with you shortly.`,
+        content: `${interaction.user}`,
+        embeds: [embed],
         components: [closeButton]
       });
 
-      await interaction.reply({ content: `Ticket created: ${ticketChannel}`, flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: `Your support ticket has been created: ${ticketChannel}`, flags: MessageFlags.Ephemeral });
     }
+  }
 
+  if (interaction.isButton()) {
     if (interaction.customId === 'close_ticket') {
       await interaction.reply({ content: 'Closing ticket in 5 seconds...', flags: MessageFlags.Ephemeral });
       setTimeout(() => interaction.channel.delete(), 5000);
@@ -371,19 +389,37 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: `Successfully deleted ${count} messages.`, flags: MessageFlags.Ephemeral });
   }
 
-  else if (commandName === 'ticket') {
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('create_ticket')
-        .setLabel('🎫 Create Ticket')
-        .setStyle(ButtonStyle.Primary)
-    );
+  else if (commandName === 'ticketsetup') {
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId('ticket_select_menu')
+      .setPlaceholder('Select a ticket category...')
+      .addOptions(
+        new StringSelectMenuOptionBuilder()
+          .setLabel('General Support')
+          .setDescription('Get help with general server questions')
+          .setValue('general')
+          .setEmoji('💬'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('Bug Report')
+          .setDescription('Report technical issues or bot bugs')
+          .setValue('bug')
+          .setEmoji('🐛'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('Partnership')
+          .setDescription('Inquire about server partnerships or collaborations')
+          .setValue('partnership')
+          .setEmoji('🤝')
+      );
 
-    await channel.send({
-      content: '**Support Ticket System**\nClick the button below to create a support ticket:',
-      components: [row]
-    });
-    await interaction.reply({ content: 'Ticket panel sent successfully!', flags: MessageFlags.Ephemeral });
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+
+    const embed = new EmbedBuilder()
+      .setColor('#2b2d31')
+      .setTitle('🎫 Advanced Support Center')
+      .setDescription('Need assistance? Please select the appropriate category from the dropdown menu below to open a private ticket channel.');
+
+    await channel.send({ embeds: [embed], components: [row] });
+    await interaction.reply({ content: 'Advanced ticket panel successfully deployed!', flags: MessageFlags.Ephemeral });
   }
 
   else if (commandName === 'setwelcome') {
