@@ -14,7 +14,7 @@ const {
   EmbedBuilder
 } = require('discord.js');
 const express = require('express');
-const axios = require('axios'); // Used to fetch data from YouTube API
+const axios = require('axios');
 
 // Express server to prevent Render Web Service from sleeping
 const app = express();
@@ -36,8 +36,6 @@ const config = {
 };
 
 const activeGiveaways = new Map();
-
-// Store YouTube notification subscriptions: key = ytHandle, value = { discordChannelId, lastVideoId }
 const ytSubscriptions = new Map();
 
 // Discord Bot Setup with necessary intents
@@ -151,6 +149,13 @@ client.once('clientReady', async () => {
           .addChannelOption(option => option.setName('channel').setDescription('Discord channel for notifications').setRequired(true))
       )
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+    new SlashCommandBuilder()
+      .setName('reactionrole')
+      .setDescription('Sends the self-assignable role panel')
+      .addRoleOption(option => option.setName('role1').setDescription('First role').setRequired(true))
+      .addRoleOption(option => option.setName('role2').setDescription('Second role').setRequired(true))
+      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   ].map(command => command.toJSON());
 
   const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
@@ -183,7 +188,6 @@ async function checkYouTubeUploads() {
       if (!searchRes.data.items || searchRes.data.items.length === 0) continue;
       const channelId = searchRes.data.items[0].id.channelId;
 
-      // Get latest uploads from channel's uploads playlist
       const channelDetailsUrl = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}&key=${process.env.YOUTUBE_API_KEY}`;
       const channelRes = await axios.get(channelDetailsUrl);
       const uploadsPlaylistId = channelRes.data.items[0].contentDetails.relatedPlaylists.uploads;
@@ -195,9 +199,8 @@ async function checkYouTubeUploads() {
       const latestVideo = playlistRes.data.items[0].snippet;
       const videoId = latestVideo.resourceId.videoId;
 
-      // If a new video is found
       if (data.lastVideoId !== videoId) {
-        data.lastVideoId = videoId; // Update tracking ID
+        data.lastVideoId = videoId;
 
         const discordChannel = client.channels.cache.get(data.discordChannelId);
         if (discordChannel) {
@@ -210,24 +213,30 @@ async function checkYouTubeUploads() {
   }
 }
 
-// Welcome, Leave, and Auto-Mod Events (Same as before)
+// Welcome Message Event
 client.on('guildMemberAdd', member => {
   if (!config.welcomeChannelId) return;
   const welcomeChannel = member.guild.channels.cache.get(config.welcomeChannelId);
   if (!welcomeChannel) return;
+
   welcomeChannel.send(`Welcome to the server, ${member}! We are glad to have you here. 🎉`);
 });
 
+// Leave Message Event
 client.on('guildMemberRemove', member => {
   if (!config.leaveChannelId) return;
   const leaveChannel = member.guild.channels.cache.get(config.leaveChannelId);
   if (!leaveChannel) return;
+
   leaveChannel.send(`${member.user.tag} has left the server. We hope to see you again! 👋`);
 });
 
+// Auto-Moderation: Anti-Invite & Bad Words Filter
 client.on('messageCreate', async message => {
   if (message.author.bot || !config.autoModEnabled) return;
+
   const content = message.content.toLowerCase();
+
   if (content.includes('discord.gg/') || content.includes('discord.com/invite/')) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
       await message.delete();
@@ -236,11 +245,23 @@ client.on('messageCreate', async message => {
       return;
     }
   }
+
+  const badWords = ['badword1', 'badword2']; 
+  const hasBadWord = badWords.some(word => content.includes(word));
+
+  if (hasBadWord) {
+    if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      await message.delete();
+      const warning = await message.channel.send(`${message.author}, please watch your language! That word is not allowed.`);
+      setTimeout(() => warning.delete(), 5000);
+    }
+  }
 });
 
 // Interactions Handler
 client.on('interactionCreate', async interaction => {
   if (interaction.isButton()) {
+    // Ticket System buttons
     if (interaction.customId === 'create_ticket') {
       const guild = interaction.guild;
       const userName = interaction.user.username;
@@ -258,7 +279,11 @@ client.on('interactionCreate', async interaction => {
         new ButtonBuilder().setCustomId('close_ticket').setLabel('🔒 Close Ticket').setStyle(ButtonStyle.Danger)
       );
 
-      await ticketChannel.send({ content: `Hello ${interaction.user}, our support team will be with you shortly.`, components: [closeButton] });
+      await ticketChannel.send({
+        content: `Hello ${interaction.user}, our support team will be with you shortly.`,
+        components: [closeButton]
+      });
+
       await interaction.reply({ content: `Ticket created: ${ticketChannel}`, flags: MessageFlags.Ephemeral });
     }
 
@@ -267,13 +292,41 @@ client.on('interactionCreate', async interaction => {
       setTimeout(() => interaction.channel.delete(), 5000);
     }
 
+    // Giveaway Button Entry
     if (interaction.customId.startsWith('enter_gwy_')) {
       const messageId = interaction.customId.split('_')[2];
       const giveaway = activeGiveaways.get(messageId);
-      if (!giveaway) return interaction.reply({ content: 'Giveaway has ended.', flags: MessageFlags.Ephemeral });
-      if (giveaway.participants.has(interaction.user.id)) return interaction.reply({ content: 'Already entered!', flags: MessageFlags.Ephemeral });
+
+      if (!giveaway) {
+        return interaction.reply({ content: 'This giveaway has already ended or is invalid.', flags: MessageFlags.Ephemeral });
+      }
+
+      if (giveaway.participants.has(interaction.user.id)) {
+        return interaction.reply({ content: 'You are already entered into this giveaway!', flags: MessageFlags.Ephemeral });
+      }
+
       giveaway.participants.add(interaction.user.id);
-      await interaction.reply({ content: '🎉 Entered giveaway successfully!', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: '🎉 You have successfully entered the giveaway!', flags: MessageFlags.Ephemeral });
+    }
+
+    // Reaction Roles Buttons
+    if (interaction.customId.startsWith('role_')) {
+      const roleId = interaction.customId.split('_')[1];
+      const role = interaction.guild.roles.cache.get(roleId);
+
+      if (!role) {
+        return interaction.reply({ content: 'Role not found or deleted!', flags: MessageFlags.Ephemeral });
+      }
+
+      const member = interaction.member;
+
+      if (member.roles.cache.has(roleId)) {
+        await member.roles.remove(roleId);
+        await interaction.reply({ content: `Removed the **${role.name}** role from you!`, flags: MessageFlags.Ephemeral });
+      } else {
+        await member.roles.add(roleId);
+        await interaction.reply({ content: `Given you the **${role.name}** role!`, flags: MessageFlags.Ephemeral });
+      }
     }
   }
 
@@ -281,7 +334,146 @@ client.on('interactionCreate', async interaction => {
 
   const { commandName, options, channel, guild } = interaction;
 
-  if (commandName === 'account') {
+  if (commandName === 'say') {
+    const msg = options.getString('message');
+    await interaction.channel.send(msg);
+    await interaction.reply({ content: 'Message sent successfully!', flags: MessageFlags.Ephemeral });
+  }
+
+  else if (commandName === 'lock') {
+    await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: false });
+    await interaction.reply('This channel has been locked! 🔒');
+  }
+
+  else if (commandName === 'lockdown') {
+    const action = options.getString('action');
+    const channels = guild.channels.cache.filter(c => c.type === ChannelType.GuildText);
+
+    channels.forEach(async (ch) => {
+      await ch.permissionOverwrites.edit(guild.roles.everyone, { 
+        SendMessages: action === 'unlock' ? true : false 
+      });
+    });
+
+    if (action === 'lock') {
+      await interaction.reply('🚨 Server Lockdown active! All text channels have been locked.');
+    } else {
+      await interaction.reply('✅ Server Lockdown lifted! All text channels are now unlocked.');
+    }
+  }
+
+  else if (commandName === 'purge') {
+    const count = options.getInteger('count');
+    if (count < 1 || count > 100) {
+      return interaction.reply({ content: 'Please provide a number between 1 and 100!', flags: MessageFlags.Ephemeral });
+    }
+    await channel.bulkDelete(count, true);
+    await interaction.reply({ content: `Successfully deleted ${count} messages.`, flags: MessageFlags.Ephemeral });
+  }
+
+  else if (commandName === 'ticket') {
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('create_ticket')
+        .setLabel('🎫 Create Ticket')
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    await channel.send({
+      content: '**Support Ticket System**\nClick the button below to create a support ticket:',
+      components: [row]
+    });
+    await interaction.reply({ content: 'Ticket panel sent successfully!', flags: MessageFlags.Ephemeral });
+  }
+
+  else if (commandName === 'setwelcome') {
+    const selectedChannel = options.getChannel('channel');
+    config.welcomeChannelId = selectedChannel.id;
+    await interaction.reply({ content: `Welcome channel successfully set to ${selectedChannel}!`, flags: MessageFlags.Ephemeral });
+  }
+
+  else if (commandName === 'setleave') {
+    const selectedChannel = options.getChannel('channel');
+    config.leaveChannelId = selectedChannel.id;
+    await interaction.reply({ content: `Leave channel successfully set to ${selectedChannel}!`, flags: MessageFlags.Ephemeral });
+  }
+
+  else if (commandName === 'automod') {
+    const status = options.getString('status');
+    config.autoModEnabled = (status === 'on');
+    await interaction.reply({ content: `Auto-Moderation has been turned **${status.toUpperCase()}**!`, flags: MessageFlags.Ephemeral });
+  }
+
+  else if (commandName === 'poll') {
+    const question = options.getString('question');
+    const opt1 = options.getString('option1');
+    const opt2 = options.getString('option2');
+
+    const embed = new EmbedBuilder()
+      .setColor('#5865F2')
+      .setTitle('📊 Server Poll')
+      .setDescription(`**${question}**\n\n🇦 ${opt1}\n\n🇧 ${opt2}`)
+      .setTimestamp();
+
+    const pollMessage = await channel.send({ embeds: [embed] });
+    await pollMessage.react('🇦');
+    await pollMessage.react('🇧');
+    await interaction.reply({ content: 'Poll created successfully!', flags: MessageFlags.Ephemeral });
+  }
+
+  else if (commandName === 'gcreate') {
+    const prize = options.getString('prize');
+    const durationMinutes = options.getInteger('duration');
+
+    const embed = new EmbedBuilder()
+      .setColor('#FFD700')
+      .setTitle('🎉 GIVEAWAY 🎉')
+      .setDescription(`Prize: **${prize}**\nDuration: **${durationMinutes} minutes**\nClick the button below to enter!`)
+      .setTimestamp(Date.now() + durationMinutes * 60 * 1000);
+
+    const sentMsg = await channel.send({ embeds: [embed] });
+    
+    const uniqueButton = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`enter_gwy_${sentMsg.id}`)
+        .setLabel('🎉 Enter Giveaway')
+        .setStyle(ButtonStyle.Success)
+    );
+
+    await sentMsg.edit({ components: [uniqueButton] });
+
+    activeGiveaways.set(sentMsg.id, {
+      prize: prize,
+      participants: new Set()
+    });
+
+    await interaction.reply({ content: 'Giveaway started successfully!', flags: MessageFlags.Ephemeral });
+
+    setTimeout(async () => {
+      const giveaway = activeGiveaways.get(sentMsg.id);
+      if (!giveaway) return;
+
+      const participantsArray = Array.from(giveaway.participants);
+      let winnerText = 'No valid participants entered the giveaway.';
+
+      if (participantsArray.length > 0) {
+        const winnerId = participantsArray[Math.floor(Math.random() * participantsArray.length)];
+        winnerText = `🏆 Winner: <@${winnerId}>! Congratulations! 🎉`;
+      }
+
+      const endedEmbed = new EmbedBuilder()
+        .setColor('#ED4245')
+        .setTitle('🎉 GIVEAWAY ENDED 🎉')
+        .setDescription(`Prize: **${prize}**\n\n${winnerText}`)
+        .setTimestamp();
+
+      await sentMsg.edit({ embeds: [endedEmbed], components: [] });
+      channel.send(winnerText);
+      activeGiveaways.delete(sentMsg.id);
+    }, durationMinutes * 60 * 1000);
+  }
+
+  else if (commandName === 'account') {
     const handle = options.getString('username');
     if (!process.env.YOUTUBE_API_KEY) {
       return interaction.reply({ content: 'YouTube API key is not configured in environment variables!', flags: MessageFlags.Ephemeral });
@@ -338,70 +530,28 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  // Other commands handling
-  else if (commandName === 'say') {
-    const msg = options.getString('message');
-    await interaction.channel.send(msg);
-    await interaction.reply({ content: 'Message sent successfully!', flags: MessageFlags.Ephemeral });
-  }
-  else if (commandName === 'lock') {
-    await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: false });
-    await interaction.reply('This channel has been locked! 🔒');
-  }
-  else if (commandName === 'purge') {
-    const count = options.getInteger('count');
-    await channel.bulkDelete(count, true);
-    await interaction.reply({ content: `Deleted ${count} messages.`, flags: MessageFlags.Ephemeral });
-  }
-  else if (commandName === 'ticket') {
+  else if (commandName === 'reactionrole') {
+    const role1 = options.getRole('role1');
+    const role2 = options.getRole('role2');
+
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('create_ticket').setLabel('🎫 Create Ticket').setStyle(ButtonStyle.Primary)
+      new ButtonBuilder()
+        .setCustomId(`role_${role1.id}`)
+        .setLabel(role1.name)
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`role_${role2.id}`)
+        .setLabel(role2.name)
+        .setStyle(ButtonStyle.Primary)
     );
-    await channel.send({ content: '**Support Ticket System**', components: [row] });
-    await interaction.reply({ content: 'Ticket panel sent!', flags: MessageFlags.Ephemeral });
-  }
-  else if (commandName === 'setwelcome') {
-    config.welcomeChannelId = options.getChannel('channel').id;
-    await interaction.reply({ content: 'Welcome channel set!', flags: MessageFlags.Ephemeral });
-  }
-  else if (commandName === 'setleave') {
-    config.leaveChannelId = options.getChannel('channel').id;
-    await interaction.reply({ content: 'Leave channel set!', flags: MessageFlags.Ephemeral });
-  }
-  else if (commandName === 'automod') {
-    config.autoModEnabled = (options.getString('status') === 'on');
-    await interaction.reply({ content: `Auto-Mod turned ${options.getString('status')}`, flags: MessageFlags.Ephemeral });
-  }
-  else if (commandName === 'poll') {
+
     const embed = new EmbedBuilder()
       .setColor('#5865F2')
-      .setTitle('📊 Server Poll')
-      .setDescription(`**${options.getString('question')}**\n\n🇦 ${options.getString('option1')}\n\n🇧 ${options.getString('option2')}`);
-    const msg = await channel.send({ embeds: [embed] });
-    await msg.react('🇦');
-    await msg.react('🇧');
-    await interaction.reply({ content: 'Poll created!', flags: MessageFlags.Ephemeral });
-  }
-  else if (commandName === 'gcreate') {
-    const prize = options.getString('prize');
-    const mins = options.getInteger('duration');
-    const embed = new EmbedBuilder().setColor('#FFD700').setTitle('🎉 GIVEAWAY 🎉').setDescription(`Prize: **${prize}**`);
-    const sentMsg = await channel.send({ embeds: [embed] });
-    const btn = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`enter_gwy_${sentMsg.id}`).setLabel('🎉 Enter').setStyle(ButtonStyle.Success)
-    );
-    await sentMsg.edit({ components: [btn] });
-    activeGiveaways.set(sentMsg.id, { prize, participants: new Set() });
-    await interaction.reply({ content: 'Giveaway started!', flags: MessageFlags.Ephemeral });
+      .setTitle('🎭 Self-Roles Panel')
+      .setDescription('Click the buttons below to toggle your roles!');
 
-    setTimeout(async () => {
-      const gwy = activeGiveaways.get(sentMsg.id);
-      if (!gwy) return;
-      const arr = Array.from(gwy.participants);
-      let winText = arr.length > 0 ? `🏆 Winner: <@${arr[Math.floor(Math.random() * arr.length)]}>!` : 'No participants.';
-      await channel.send(winText);
-      activeGiveaways.delete(sentMsg.id);
-    }, mins * 60 * 1000);
+    await channel.send({ embeds: [embed], components: [row] });
+    await interaction.reply({ content: 'Reaction role panel sent successfully!', flags: MessageFlags.Ephemeral });
   }
 });
 
