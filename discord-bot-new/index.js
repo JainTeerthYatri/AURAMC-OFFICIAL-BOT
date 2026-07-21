@@ -10,7 +10,8 @@ const {
   REST,
   Routes,
   SlashCommandBuilder,
-  MessageFlags
+  MessageFlags,
+  EmbedBuilder
 } = require('discord.js');
 const express = require('express');
 
@@ -26,12 +27,15 @@ app.listen(PORT, () => {
   console.log(`Express server is listening on port ${PORT}`);
 });
 
-// Store configuration settings in memory (or you can use a database later)
+// Store configuration and active data in memory
 const config = {
   welcomeChannelId: null,
   leaveChannelId: null,
   autoModEnabled: true
 };
+
+// Store active giveaways in memory
+const activeGiveaways = new Map();
 
 // Discord Bot Setup with necessary intents
 const client = new Client({
@@ -112,6 +116,21 @@ client.once('clientReady', async () => {
             { name: 'Disable', value: 'off' }
           ))
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+    new SlashCommandBuilder()
+      .setName('poll')
+      .setDescription('Creates a voting poll')
+      .addStringOption(option => option.setName('question').setDescription('The poll question').setRequired(true))
+      .addStringOption(option => option.setName('option1').setDescription('First option').setRequired(true))
+      .addStringOption(option => option.setName('option2').setDescription('Second option').setRequired(true))
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+    new SlashCommandBuilder()
+      .setName('gcreate')
+      .setDescription('Starts a giveaway')
+      .addStringOption(option => option.setName('prize').setDescription('The prize being given away').setRequired(true))
+      .addIntegerOption(option => option.setName('duration').setDescription('Duration in minutes').setRequired(true))
+      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   ].map(command => command.toJSON());
 
   const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN);
@@ -178,6 +197,7 @@ client.on('messageCreate', async message => {
 // Slash Commands & Interactions Handler
 client.on('interactionCreate', async interaction => {
   if (interaction.isButton()) {
+    // Ticket System buttons
     if (interaction.customId === 'create_ticket') {
       const guild = interaction.guild;
       const userName = interaction.user.username;
@@ -215,6 +235,23 @@ client.on('interactionCreate', async interaction => {
     if (interaction.customId === 'close_ticket') {
       await interaction.reply({ content: 'Closing ticket in 5 seconds...', flags: MessageFlags.Ephemeral });
       setTimeout(() => interaction.channel.delete(), 5000);
+    }
+
+    // Giveaway Button Entry
+    if (interaction.customId.startsWith('enter_gwy_')) {
+      const messageId = interaction.customId.split('_')[2];
+      const giveaway = activeGiveaways.get(messageId);
+
+      if (!giveaway) {
+        return interaction.reply({ content: 'This giveaway has already ended or is invalid.', flags: MessageFlags.Ephemeral });
+      }
+
+      if (giveaway.participants.has(interaction.user.id)) {
+        return interaction.reply({ content: 'You are already entered into this giveaway!', flags: MessageFlags.Ephemeral });
+      }
+
+      giveaway.participants.add(interaction.user.id);
+      await interaction.reply({ content: '🎉 You have successfully entered the giveaway!', flags: MessageFlags.Ephemeral });
     }
   }
 
@@ -290,6 +327,85 @@ client.on('interactionCreate', async interaction => {
     const status = options.getString('status');
     config.autoModEnabled = (status === 'on');
     await interaction.reply({ content: `Auto-Moderation has been turned **${status.toUpperCase()}**!`, flags: MessageFlags.Ephemeral });
+  }
+
+  else if (commandName === 'poll') {
+    const question = options.getString('question');
+    const opt1 = options.getString('option1');
+    const opt2 = options.getString('option2');
+
+    const embed = new EmbedBuilder()
+      .setColor('#5865F2')
+      .setTitle('📊 Server Poll')
+      .setDescription(`**${question}**\n\n🇦 ${opt1}\n\n🇧 ${opt2}`)
+      .setTimestamp();
+
+    const pollMessage = await channel.send({ embeds: [embed] });
+    await pollMessage.react('🇦');
+    await pollMessage.react('🇧');
+    await interaction.reply({ content: 'Poll created successfully!', flags: MessageFlags.Ephemeral });
+  }
+
+  else if (commandName === 'gcreate') {
+    const prize = options.getString('prize');
+    const durationMinutes = options.getInteger('duration');
+
+    const embed = new EmbedBuilder()
+      .setColor('#FFD700')
+      .setTitle('🎉 GIVEAWAY 🎉')
+      .setDescription(`Prize: **${prize}**\nDuration: **${durationMinutes} minutes**\nClick the button below to enter!`)
+      .setTimestamp(Date.now() + durationMinutes * 60 * 1000);
+
+    const button = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('placeholder') // Will be updated with unique ID
+        .setLabel('🎉 Enter Giveaway')
+        .setStyle(ButtonStyle.Success)
+    );
+
+    const sentMsg = await channel.send({ embeds: [embed], components: [] });
+    
+    // Update button with message ID reference
+    const uniqueButton = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`enter_gwy_${sentMsg.id}`)
+        .setLabel('🎉 Enter Giveaway')
+        .setStyle(ButtonStyle.Success)
+    );
+
+    await sentMsg.edit({ components: [uniqueButton] });
+
+    // Save to active giveaways map
+    activeGiveaways.set(sentMsg.id, {
+      prize: prize,
+      participants: new Set()
+    });
+
+    await interaction.reply({ content: 'Giveaway started successfully!', flags: MessageFlags.Ephemeral });
+
+    // Automatically end giveaway after duration
+    setTimeout(async () => {
+      const giveaway = activeGiveaways.get(sentMsg.id);
+      if (!giveaway) return;
+
+      const participantsArray = Array.from(giveaway.participants);
+      let winnerText = 'No valid participants entered the giveaway.';
+
+      if (participantsArray.length > 0) {
+        const winnerId = participantsArray[Math.floor(Math.random() * participantsArray.length)];
+        winnerText = `🏆 Winner: <@${winnerId}>! Congratulations! 🎉`;
+      }
+
+      const endedEmbed = new EmbedBuilder()
+        .setColor('#ED4245')
+        .setTitle('🎉 GIVEAWAY ENDED 🎉')
+        .setDescription(`Prize: **${prize}**\n\n${winnerText}`)
+        .setTimestamp();
+
+      await sentMsg.edit({ embeds: [endedEmbed], components: [] });
+      channel.send(winnerText);
+      activeGiveaways.delete(sentMsg.id);
+    }, durationMinutes * 60 * 1000);
   }
 });
 
