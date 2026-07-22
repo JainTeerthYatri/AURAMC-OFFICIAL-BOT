@@ -571,7 +571,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply();
 
     try {
-      const model = genAI.getGenerativeModel({ model: 'models/gemini-1.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const aiReply = response.text() || 'No response generated.';
