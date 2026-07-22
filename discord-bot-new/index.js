@@ -42,7 +42,8 @@ const config = {
 const activeGiveaways = new Map();
 const ytSubscriptions = new Map();
 const snipeCache = new Map(); 
-const afkUsers = new Map();   
+const afkUsers = new Map();
+const userWarnings = new Map(); // Store user warnings: userId -> array of warnings
 
 function parseTime(timeStr) {
   const match = timeStr.toLowerCase().match(/^(\d+)([mhd])$/);
@@ -264,6 +265,56 @@ client.once('clientReady', async () => {
       .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
 
     new SlashCommandBuilder()
+      .setName('unban')
+      .setDescription('Unban a user from the server using their User ID')
+      .addStringOption(option => 
+        option.setName('userid')
+          .setDescription('The User ID of the person to unban')
+          .setRequired(true)
+      )
+      .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
+
+    new SlashCommandBuilder()
+      .setName('warn')
+      .setDescription('Issue a formal warning to a member')
+      .addUserOption(option => 
+        option.setName('user')
+          .setDescription('The user to warn')
+          .setRequired(true)
+      )
+      .addStringOption(option => 
+        option.setName('reason')
+          .setDescription('Reason for the warning')
+          .setRequired(true)
+      )
+      .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+
+    new SlashCommandBuilder()
+      .setName('warnings')
+      .setDescription('Check active warnings for a member')
+      .addUserOption(option => 
+        option.setName('user')
+          .setDescription('The user to check warnings for')
+          .setRequired(true)
+      )
+      .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+
+    new SlashCommandBuilder()
+      .setName('nick')
+      .setDescription('Change the nickname of a server member')
+      .addUserOption(option => 
+        option.setName('user')
+          .setDescription('The user to target')
+          .setRequired(true)
+      )
+      .addStringOption(option => 
+        option.setName('nickname')
+          .setDescription('The new nickname (leave blank to reset)')
+          .setRequired(false)
+      )
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageNicknames),
+
+    new SlashCommandBuilder()
       .setName('ticketsetup')
       .setDescription('Creates a customizable support ticket panel')
       .addStringOption(option => 
@@ -424,6 +475,26 @@ client.once('clientReady', async () => {
           .setDescription('Hex color code (e.g., #FF0000)')
           .setRequired(false)
       )
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+    new SlashCommandBuilder()
+      .setName('embed-advanced')
+      .setDescription('Creates an advanced custom rich embed with title, description, thumbnail, and footer')
+      .addStringOption(option => option.setName('title').setDescription('Embed title').setRequired(true))
+      .addStringOption(option => option.setName('description').setDescription('Embed description').setRequired(true))
+      .addStringOption(option => option.setName('color').setDescription('Hex color code (e.g. #5865F2)').setRequired(false))
+      .addStringOption(option => option.setName('thumbnail').setDescription('Thumbnail image URL').setRequired(false))
+      .addStringOption(option => option.setName('footer').setDescription('Footer text').setRequired(false))
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+    new SlashCommandBuilder()
+      .setName('poll-advanced')
+      .setDescription('Creates a rich multi-option poll (up to 4 options)')
+      .addStringOption(option => option.setName('question').setDescription('Poll question').setRequired(true))
+      .addStringOption(option => option.setName('option1').setDescription('First option').setRequired(true))
+      .addStringOption(option => option.setName('option2').setDescription('Second option').setRequired(true))
+      .addStringOption(option => option.setName('option3').setDescription('Third option (Optional)').setRequired(false))
+      .addStringOption(option => option.setName('option4').setDescription('Fourth option (Optional)').setRequired(false))
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   ].map(command => command.toJSON());
@@ -761,7 +832,7 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  // --- Admin/Mod Handlers (Including Snipe & Poll) ---
+  // --- Admin/Mod Handlers ---
   else if (commandName === 'snipe') {
     const snipedMessage = snipeCache.get(channel.id);
     if (!snipedMessage) {
@@ -817,30 +888,97 @@ client.on('interactionCreate', async interaction => {
   else if (commandName === 'timeout') {
     const targetUser = options.getUser('user');
     const minutes = options.getInteger('minutes');
+    const reason = options.getString('reason') || 'No reason provided';
     const member = await guild.members.fetch(targetUser.id).catch(() => null);
     
     if (member) {
-      await member.timeout(minutes * 60 * 1000);
-      await interaction.reply({ content: `Timed out ${targetUser.tag}.` });
+      await member.timeout(minutes * 60 * 1000, reason);
+      await interaction.reply({ content: `Timed out ${targetUser.tag} for ${minutes} minute(s). Reason: ${reason}` });
     } else {
       await interaction.reply({ content: 'Could not find that member.', flags: MessageFlags.Ephemeral });
     }
   }
   else if (commandName === 'kick') {
     const targetUser = options.getUser('user');
+    const reason = options.getString('reason') || 'No reason provided';
     const member = await guild.members.fetch(targetUser.id).catch(() => null);
     
     if (member) {
-      await member.kick();
-      await interaction.reply({ content: `Kicked ${targetUser.tag}.` });
+      await member.kick(reason);
+      await interaction.reply({ content: `Kicked ${targetUser.tag}. Reason: ${reason}` });
     } else {
       await interaction.reply({ content: 'Could not find that member.', flags: MessageFlags.Ephemeral });
     }
   }
   else if (commandName === 'ban') {
     const targetUser = options.getUser('user');
-    await guild.members.ban(targetUser.id);
-    await interaction.reply({ content: `Banned ${targetUser.tag}.` });
+    const reason = options.getString('reason') || 'No reason provided';
+    await guild.members.ban(targetUser.id, { reason });
+    await interaction.reply({ content: `Banned ${targetUser.tag}. Reason: ${reason}` });
+  }
+  else if (commandName === 'unban') {
+    const userId = options.getString('userid');
+    try {
+      await guild.members.unban(userId);
+      await interaction.reply({ content: `Successfully unbanned user ID: \`${userId}\`` });
+    } catch (err) {
+      await interaction.reply({ content: `Failed to unban user. Make sure the User ID is valid and banned.`, flags: MessageFlags.Ephemeral });
+    }
+  }
+  else if (commandName === 'warn') {
+    const targetUser = options.getUser('user');
+    const reason = options.getString('reason');
+    
+    if (!userWarnings.has(targetUser.id)) {
+      userWarnings.set(targetUser.id, []);
+    }
+    
+    userWarnings.get(targetUser.id).push({
+      reason,
+      moderator: interaction.user.tag,
+      date: new Date().toLocaleDateString()
+    });
+
+    await interaction.reply({ content: `⚠️ Issued a warning to **${targetUser.tag}**. Reason: ${reason}` });
+    
+    try {
+      await targetUser.send(`⚠️ You have been warned in **${guild.name}** for: **${reason}**`);
+    } catch (err) {
+      // DMs closed
+    }
+  }
+  else if (commandName === 'warnings') {
+    const targetUser = options.getUser('user');
+    const warns = userWarnings.get(targetUser.id) || [];
+
+    if (warns.length === 0) {
+      return interaction.reply({ content: `✅ **${targetUser.tag}** has no active warnings.`, flags: MessageFlags.Ephemeral });
+    }
+
+    const warnList = warns.map((w, index) => `**${index + 1}.** ${w.reason} (Moderator: ${w.moderator}, Date: ${w.date})`).join('\n');
+    const embed = new EmbedBuilder()
+      .setColor('#FFCC00')
+      .setTitle(`⚠️ Warnings for ${targetUser.tag}`)
+      .setDescription(warnList)
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+  }
+  else if (commandName === 'nick') {
+    const targetUser = options.getUser('user');
+    const nickname = options.getString('nickname') || null;
+    const member = await guild.members.fetch(targetUser.id).catch(() => null);
+
+    if (!member) {
+      return interaction.reply({ content: 'Member not found!', flags: MessageFlags.Ephemeral });
+    }
+
+    try {
+      await member.setNickname(nickname);
+      await interaction.reply({ content: `Successfully updated nickname for **${targetUser.tag}**.` });
+    } catch (err) {
+      await interaction.reply({ content: `Failed to change nickname. Ensure my role is higher than the target user's role.`, flags: MessageFlags.Ephemeral });
+    }
   }
   else if (commandName === 'ticketsetup') {
     const title = options.getString('title');
@@ -904,6 +1042,49 @@ client.on('interactionCreate', async interaction => {
       embeds: [new EmbedBuilder().setTitle(options.getString('title')).setDescription(options.getString('description'))] 
     });
     await interaction.reply({ content: 'Embed sent!', flags: MessageFlags.Ephemeral });
+  }
+  else if (commandName === 'embed-advanced') {
+    const title = options.getString('title');
+    const description = options.getString('description');
+    const color = options.getString('color') || '#5865F2';
+    const thumbnail = options.getString('thumbnail');
+    const footer = options.getString('footer');
+
+    const embed = new EmbedBuilder()
+      .setTitle(title)
+      .setDescription(description)
+      .setColor(color);
+
+    if (thumbnail) embed.setThumbnail(thumbnail);
+    if (footer) embed.setFooter({ text: footer });
+
+    await channel.send({ embeds: [embed] });
+    await interaction.reply({ content: 'Advanced embed sent!', flags: MessageFlags.Ephemeral });
+  }
+  else if (commandName === 'poll-advanced') {
+    const question = options.getString('question');
+    const opt1 = options.getString('option1');
+    const opt2 = options.getString('option2');
+    const opt3 = options.getString('option3');
+    const opt4 = options.getString('option4');
+
+    let desc = `**${question}**\n\n🇦 ${opt1}\n\n🇧 ${opt2}`;
+    if (opt3) desc += `\n\n🇨 ${opt3}`;
+    if (opt4) desc += `\n\n🇩 ${opt4}`;
+
+    const embed = new EmbedBuilder()
+      .setColor('#5865F2')
+      .setTitle('📊 Advanced Poll')
+      .setDescription(desc)
+      .setTimestamp();
+
+    const pollMessage = await channel.send({ embeds: [embed] });
+    await pollMessage.react('🇦');
+    await pollMessage.react('🇧');
+    if (opt3) await pollMessage.react('🇨');
+    if (opt4) await pollMessage.react('🇩');
+
+    await interaction.reply({ content: 'Advanced poll created!', flags: MessageFlags.Ephemeral });
   }
 });
 
