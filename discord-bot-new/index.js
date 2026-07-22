@@ -40,6 +40,19 @@ const config = {
 const activeGiveaways = new Map();
 const ytSubscriptions = new Map();
 
+// Helper function to parse time strings like 10m, 2h, 1d into milliseconds
+function parseTime(timeStr) {
+  const match = timeStr.toLowerCase().match(/^(\d+)([mhd])$/);
+  if (!match) return null;
+  const value = parseInt(match[1]);
+  const unit = match[2];
+  
+  if (unit === 'm') return value * 60 * 1000;
+  if (unit === 'h') return value * 60 * 60 * 1000;
+  if (unit === 'd') return value * 24 * 60 * 60 * 1000;
+  return null;
+}
+
 // Discord Bot Setup with necessary intents
 const client = new Client({
   intents: [
@@ -129,10 +142,24 @@ client.once('clientReady', async () => {
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
     new SlashCommandBuilder()
-      .setName('gcreate')
-      .setDescription('Starts a giveaway')
+      .setName('giveaway')
+      .setDescription('Host an advanced giveaway with preset or custom time')
       .addStringOption(option => option.setName('prize').setDescription('The prize being given away').setRequired(true))
-      .addIntegerOption(option => option.setName('duration').setDescription('Duration in minutes').setRequired(true))
+      .addStringOption(option =>
+        option.setName('time')
+          .setDescription('Select a preset time OR select Custom to write your own')
+          .setRequired(true)
+          .addChoices(
+            { name: '10 Minutes', value: '10m' },
+            { name: '30 Minutes', value: '30m' },
+            { name: '1 Hour', value: '1h' },
+            { name: '6 Hours', value: '6h' },
+            { name: '12 Hours', value: '12h' },
+            { name: '1 Day', value: '1d' },
+            { name: 'Custom Time (Use custom_time option)', value: 'custom' }
+          ))
+      .addStringOption(option => option.setName('custom_time').setDescription('Example: 15m, 2h, 3d (Only if Custom is selected)').setRequired(false))
+      .addIntegerOption(option => option.setName('winners').setDescription('Number of winners (Default: 1)').setRequired(false))
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
@@ -158,8 +185,6 @@ client.once('clientReady', async () => {
       .addRoleOption(option => option.setName('role1').setDescription('First role').setRequired(true))
       .addRoleOption(option => option.setName('role2').setDescription('Second role').setRequired(true))
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-    // --- NEW COMMANDS ADDED BELOW ---
 
     new SlashCommandBuilder()
       .setName('avatar')
@@ -347,7 +372,6 @@ client.on('interactionCreate', async interaction => {
 
   const { commandName, options, channel, guild } = interaction;
 
-  // --- EXISTING COMMANDS LOGIC ---
   if (commandName === 'say') {
     const msg = options.getString('message');
     await interaction.channel.send(msg);
@@ -412,40 +436,86 @@ client.on('interactionCreate', async interaction => {
     await pollMessage.react('🇧');
     await interaction.reply({ content: 'Poll created successfully!', flags: MessageFlags.Ephemeral });
   }
-  else if (commandName === 'gcreate') {
+  else if (commandName === 'giveaway') {
     const prize = options.getString('prize');
-    const durationMinutes = options.getInteger('duration');
+    let timeInput = options.getString('time');
+    const customTime = options.getString('custom_time');
+    const winnerCount = options.getInteger('winners') || 1;
+
+    if (timeInput === 'custom') {
+      if (!customTime) {
+        return interaction.reply({ content: '❌ You selected Custom Time but forgot to provide it in the `custom_time` option! (e.g., 45m, 2h)', flags: MessageFlags.Ephemeral });
+      }
+      timeInput = customTime;
+    }
+
+    const durationMs = parseTime(timeInput);
+    if (!durationMs) {
+      return interaction.reply({ content: '❌ Invalid time format! Please use numbers followed by m, h, or d (e.g., 15m, 2h, 1d).', flags: MessageFlags.Ephemeral });
+    }
+
+    const endTime = Date.now() + durationMs;
+    const endTimestamp = Math.floor(endTime / 1000); 
+
     const embed = new EmbedBuilder()
       .setColor('#FFD700')
-      .setTitle('🎉 GIVEAWAY 🎉')
-      .setDescription(`Prize: **${prize}**\nDuration: **${durationMinutes} minutes**\nClick the button below to enter!`)
-      .setTimestamp(Date.now() + durationMinutes * 60 * 1000);
+      .setTitle('🎉 **GIVEAWAY STARTED** 🎉')
+      .setDescription(`**Prize:** ${prize}\n**Winners:** ${winnerCount}\n**Hosted By:** ${interaction.user}\n\n⏳ **Ends:** <t:${endTimestamp}:R> (<t:${endTimestamp}:f>)\n\nClick the button below to enter!`)
+      .setTimestamp(endTime);
+
     const sentMsg = await channel.send({ embeds: [embed] });
+    
     const uniqueButton = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`enter_gwy_${sentMsg.id}`).setLabel('🎉 Enter Giveaway').setStyle(ButtonStyle.Success)
+      new ButtonBuilder()
+        .setCustomId(`enter_gwy_${sentMsg.id}`)
+        .setLabel('🎉 Enter Giveaway')
+        .setStyle(ButtonStyle.Success)
     );
+
     await sentMsg.edit({ components: [uniqueButton] });
-    activeGiveaways.set(sentMsg.id, { prize: prize, participants: new Set() });
-    await interaction.reply({ content: 'Giveaway started!', flags: MessageFlags.Ephemeral });
+
+    activeGiveaways.set(sentMsg.id, {
+      prize: prize,
+      winnersCount: winnerCount,
+      host: interaction.user.id,
+      participants: new Set()
+    });
+
+    await interaction.reply({ content: `✅ Giveaway for **${prize}** started successfully!`, flags: MessageFlags.Ephemeral });
 
     setTimeout(async () => {
       const giveaway = activeGiveaways.get(sentMsg.id);
-      if (!giveaway) return;
+      if (!giveaway) return; 
+
       const participantsArray = Array.from(giveaway.participants);
-      let winnerText = 'No valid participants entered the giveaway.';
+      let winnerText = 'No valid participants entered the giveaway. 😢';
+      
       if (participantsArray.length > 0) {
-        const winnerId = participantsArray[Math.floor(Math.random() * participantsArray.length)];
-        winnerText = `🏆 Winner: <@${winnerId}>! Congratulations! 🎉`;
+        const actualWinnersCount = Math.min(giveaway.winnersCount, participantsArray.length);
+        const winners = [];
+        
+        for (let i = 0; i < actualWinnersCount; i++) {
+          const randomIndex = Math.floor(Math.random() * participantsArray.length);
+          winners.push(`<@${participantsArray.splice(randomIndex, 1)[0]}>`);
+        }
+        
+        winnerText = `🏆 **Winner(s):** ${winners.join(', ')}! Congratulations! 🎉`;
       }
+
       const endedEmbed = new EmbedBuilder()
         .setColor('#ED4245')
-        .setTitle('🎉 GIVEAWAY ENDED 🎉')
-        .setDescription(`Prize: **${prize}**\n\n${winnerText}`)
+        .setTitle('🎉 **GIVEAWAY ENDED** 🎉')
+        .setDescription(`**Prize:** ${giveaway.prize}\n**Hosted By:** <@${giveaway.host}>\n\n${winnerText}`)
         .setTimestamp();
+
       await sentMsg.edit({ embeds: [endedEmbed], components: [] });
-      channel.send(winnerText);
+      
+      if (participantsArray.length > 0 || winnerText.includes('Winner')) {
+        await channel.send(`${winnerText}\nYou won **${giveaway.prize}**!`);
+      }
+      
       activeGiveaways.delete(sentMsg.id);
-    }, durationMinutes * 60 * 1000);
+    }, durationMs);
   }
   else if (commandName === 'account') {
     if (!process.env.YOUTUBE_API_KEY) return interaction.reply({ content: 'YouTube API key missing!', flags: MessageFlags.Ephemeral });
@@ -495,9 +565,6 @@ client.on('interactionCreate', async interaction => {
     await channel.send({ embeds: [embed], components: [row] });
     await interaction.reply({ content: 'Reaction role panel sent!', flags: MessageFlags.Ephemeral });
   }
-
-  // --- NEW COMMANDS LOGIC ADDED HERE ---
-
   else if (commandName === 'avatar') {
     const targetUser = options.getUser('user') || interaction.user;
     const avatarUrl = targetUser.displayAvatarURL({ size: 1024, dynamic: true });
@@ -507,7 +574,6 @@ client.on('interactionCreate', async interaction => {
       .setImage(avatarUrl);
     await interaction.reply({ embeds: [embed] });
   }
-
   else if (commandName === 'serverinfo') {
     const { guild } = interaction;
     const owner = await guild.fetchOwner();
@@ -527,7 +593,6 @@ client.on('interactionCreate', async interaction => {
       .setTimestamp();
     await interaction.reply({ embeds: [embed] });
   }
-
   else if (commandName === 'embed') {
     const title = options.getString('title');
     const desc = options.getString('description');
@@ -540,13 +605,12 @@ client.on('interactionCreate', async interaction => {
     try {
       embed.setColor(colorInput);
     } catch (error) {
-      embed.setColor('#5865F2'); // Fallback color if the hex code provided by user is invalid
+      embed.setColor('#5865F2'); 
     }
 
     await channel.send({ embeds: [embed] });
     await interaction.reply({ content: 'Custom embed successfully sent to the channel!', flags: MessageFlags.Ephemeral });
   }
-
   else if (commandName === 'remind') {
     const minutes = options.getInteger('minutes');
     const reminderMessage = options.getString('message');
@@ -559,12 +623,10 @@ client.on('interactionCreate', async interaction => {
     setTimeout(() => {
       interaction.user.send(`⏰ **Reminder:** ${reminderMessage}`)
         .catch(() => {
-          // Fallback if user's DMs are disabled
           channel.send(`⏰ <@${interaction.user.id}>, your reminder: **${reminderMessage}**`);
         });
     }, minutes * 60 * 1000);
   }
-
   else if (commandName === 'userinfo') {
     const targetUser = options.getUser('user') || interaction.user;
     const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
@@ -580,10 +642,9 @@ client.on('interactionCreate', async interaction => {
       .setFooter({ text: `Requested by ${interaction.user.tag}` })
       .setTimestamp();
 
-    // If the user is currently in the server, show extra server details
     if (targetMember) {
       const rolesList = targetMember.roles.cache
-        .filter(role => role.id !== guild.id) // Filter out @everyone
+        .filter(role => role.id !== guild.id) 
         .map(role => role.toString())
         .join(', ');
 
