@@ -134,7 +134,7 @@ client.once('clientReady', async () => {
 
     new SlashCommandBuilder()
       .setName('askai')
-      .setDescription('Ask anything to the Gemini AI directly on Discord')
+      .setDescription('Ask anything to the AI directly on Discord')
       .addStringOption(option => option.setName('prompt').setDescription('Your question or prompt for the AI').setRequired(true)),
 
     new SlashCommandBuilder()
@@ -546,7 +546,7 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setColor('#10a37f')
-        .setTitle('🤖 Gemini AI Response')
+        .setTitle('🤖 AI Response for AURAMC')
         .setDescription(aiReply.length > 4000 ? aiReply.substring(0, 4000) + '...' : aiReply)
         .setFooter({ text: `Prompt by ${interaction.user.tag}` })
         .setTimestamp();
