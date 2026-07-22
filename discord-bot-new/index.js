@@ -73,7 +73,11 @@ client.once('clientReady', async () => {
     new SlashCommandBuilder()
       .setName('askai')
       .setDescription('Ask anything to AURAMC directly on Discord')
-      .addStringOption(option => option.setName('prompt').setDescription('Your question or prompt for AURAMC').setRequired(true)),
+      .addStringOption(option => 
+        option.setName('prompt')
+          .setDescription('Your question or prompt for AURAMC')
+          .setRequired(true)
+      ),
 
     new SlashCommandBuilder()
       .setName('membercount')
@@ -82,12 +86,20 @@ client.once('clientReady', async () => {
     new SlashCommandBuilder()
       .setName('afk')
       .setDescription('Sets your AFK status so the bot replies when you are pinged')
-      .addStringOption(option => option.setName('reason').setDescription('Reason for being AFK').setRequired(false)),
+      .addStringOption(option => 
+        option.setName('reason')
+          .setDescription('Reason for being AFK')
+          .setRequired(false)
+      ),
 
     new SlashCommandBuilder()
       .setName('avatar')
       .setDescription('Displays a user\'s avatar')
-      .addUserOption(option => option.setName('user').setDescription('The user to get the avatar for').setRequired(false)),
+      .addUserOption(option => 
+        option.setName('user')
+          .setDescription('The user to get the avatar for')
+          .setRequired(false)
+      ),
 
     new SlashCommandBuilder()
       .setName('serverinfo')
@@ -96,18 +108,34 @@ client.once('clientReady', async () => {
     new SlashCommandBuilder()
       .setName('userinfo')
       .setDescription('Displays information about a user')
-      .addUserOption(option => option.setName('user').setDescription('The user to inspect').setRequired(false)),
+      .addUserOption(option => 
+        option.setName('user')
+          .setDescription('The user to inspect')
+          .setRequired(false)
+      ),
 
     new SlashCommandBuilder()
       .setName('remind')
       .setDescription('Set a personal reminder')
-      .addIntegerOption(option => option.setName('minutes').setDescription('Time in minutes until reminder').setRequired(true))
-      .addStringOption(option => option.setName('message').setDescription('What to remind you about').setRequired(true)),
+      .addIntegerOption(option => 
+        option.setName('minutes')
+          .setDescription('Time in minutes until reminder')
+          .setRequired(true)
+      )
+      .addStringOption(option => 
+        option.setName('message')
+          .setDescription('What to remind you about')
+          .setRequired(true)
+      ),
 
     new SlashCommandBuilder()
       .setName('account')
       .setDescription('View public YouTube channel details')
-      .addStringOption(option => option.setName('username').setDescription('YouTube channel handle (e.g. @MrBeast)').setRequired(true)),
+      .addStringOption(option => 
+        option.setName('username')
+          .setDescription('YouTube channel handle (e.g. @MrBeast)')
+          .setRequired(true)
+      ),
 
 
     // ================= ADMIN & MODERATION COMMANDS (Visible only to Admins/Mods) =================
@@ -119,15 +147,31 @@ client.once('clientReady', async () => {
     new SlashCommandBuilder()
       .setName('poll')
       .setDescription('Creates a voting poll')
-      .addStringOption(option => option.setName('question').setDescription('The poll question').setRequired(true))
-      .addStringOption(option => option.setName('option1').setDescription('First option').setRequired(true))
-      .addStringOption(option => option.setName('option2').setDescription('Second option').setRequired(true))
+      .addStringOption(option => 
+        option.setName('question')
+          .setDescription('The poll question')
+          .setRequired(true)
+      )
+      .addStringOption(option => 
+        option.setName('option1')
+          .setDescription('First option')
+          .setRequired(true)
+      )
+      .addStringOption(option => 
+        option.setName('option2')
+          .setDescription('Second option')
+          .setRequired(true)
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
     new SlashCommandBuilder()
       .setName('say')
       .setDescription('Makes the bot repeat your message')
-      .addStringOption(option => option.setName('message').setDescription('The message for the bot to send').setRequired(true))
+      .addStringOption(option => 
+        option.setName('message')
+          .setDescription('The message for the bot to send')
+          .setRequired(true)
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
     new SlashCommandBuilder()
@@ -145,7 +189,8 @@ client.once('clientReady', async () => {
           .addChoices(
             { name: 'Lock', value: 'lock' },
             { name: 'Unlock', value: 'unlock' }
-          ))
+          )
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
@@ -154,46 +199,103 @@ client.once('clientReady', async () => {
       .addIntegerOption(option =>
         option.setName('count')
           .setDescription('Number of messages to delete (1-100)')
-          .setRequired(true))
+          .setRequired(true)
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
     new SlashCommandBuilder()
       .setName('slowmode')
       .setDescription('Sets the slowmode delay for the current channel')
-      .addIntegerOption(option => option.setName('seconds').setDescription('Delay in seconds (0 to disable)').setRequired(true))
+      .addIntegerOption(option => 
+        option.setName('seconds')
+          .setDescription('Delay in seconds (0 to disable)')
+          .setRequired(true)
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
 
     new SlashCommandBuilder()
       .setName('timeout')
       .setDescription('Temporarily timeout a member')
-      .addUserOption(option => option.setName('user').setDescription('The user to timeout').setRequired(true))
-      .addIntegerOption(option => option.setName('minutes').setDescription('Duration in minutes').setRequired(true))
-      .addStringOption(option => option.setName('reason').setDescription('Reason for timeout').setRequired(false))
+      .addUserOption(option => 
+        option.setName('user')
+          .setDescription('The user to timeout')
+          .setRequired(true)
+      )
+      .addIntegerOption(option => 
+        option.setName('minutes')
+          .setDescription('Duration in minutes')
+          .setRequired(true)
+      )
+      .addStringOption(option => 
+        option.setName('reason')
+          .setDescription('Reason for timeout')
+          .setRequired(false)
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
     new SlashCommandBuilder()
       .setName('kick')
       .setDescription('Kick a member from the server')
-      .addUserOption(option => option.setName('user').setDescription('The user to kick').setRequired(true))
-      .addStringOption(option => option.setName('reason').setDescription('Reason for kicking').setRequired(false))
+      .addUserOption(option => 
+        option.setName('user')
+          .setDescription('The user to kick')
+          .setRequired(true)
+      )
+      .addStringOption(option => 
+        option.setName('reason')
+          .setDescription('Reason for kicking')
+          .setRequired(false)
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
 
     new SlashCommandBuilder()
       .setName('ban')
       .setDescription('Ban a member from the server')
-      .addUserOption(option => option.setName('user').setDescription('The user to ban').setRequired(true))
-      .addStringOption(option => option.setName('reason').setDescription('Reason for banning').setRequired(false))
+      .addUserOption(option => 
+        option.setName('user')
+          .setDescription('The user to ban')
+          .setRequired(true)
+      )
+      .addStringOption(option => 
+        option.setName('reason')
+          .setDescription('Reason for banning')
+          .setRequired(false)
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
 
     new SlashCommandBuilder()
       .setName('ticketsetup')
       .setDescription('Creates a customizable support ticket panel')
-      .addStringOption(option => option.setName('title').setDescription('Title of the ticket panel').setRequired(true))
-      .addStringOption(option => option.setName('description').setDescription('Description inside the ticket panel').setRequired(true))
-      .addStringOption(option => option.setName('button1').setDescription('Name for the 1st ticket button').setRequired(true))
-      .addStringOption(option => option.setName('button2').setDescription('Name for the 2nd ticket button (Optional)').setRequired(false))
-      .addStringOption(option => option.setName('button3').setDescription('Name for the 3rd ticket button (Optional)').setRequired(false))
-      .addStringOption(option => option.setName('button4').setDescription('Name for the 4th ticket button (Optional)').setRequired(false))
+      .addStringOption(option => 
+        option.setName('title')
+          .setDescription('Title of the ticket panel')
+          .setRequired(true)
+      )
+      .addStringOption(option => 
+        option.setName('description')
+          .setDescription('Description inside the ticket panel')
+          .setRequired(true)
+      )
+      .addStringOption(option => 
+        option.setName('button1')
+          .setDescription('Name for the 1st ticket button')
+          .setRequired(true)
+      )
+      .addStringOption(option => 
+        option.setName('button2')
+          .setDescription('Name for the 2nd ticket button (Optional)')
+          .setRequired(false)
+      )
+      .addStringOption(option => 
+        option.setName('button3')
+          .setDescription('Name for the 3rd ticket button (Optional)')
+          .setRequired(false)
+      )
+      .addStringOption(option => 
+        option.setName('button4')
+          .setDescription('Name for the 4th ticket button (Optional)')
+          .setRequired(false)
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
@@ -204,13 +306,21 @@ client.once('clientReady', async () => {
     new SlashCommandBuilder()
       .setName('setwelcome')
       .setDescription('Sets the channel for welcome messages')
-      .addChannelOption(option => option.setName('channel').setDescription('Select the welcome channel').setRequired(true))
+      .addChannelOption(option => 
+        option.setName('channel')
+          .setDescription('Select the welcome channel')
+          .setRequired(true)
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
       .setName('setleave')
       .setDescription('Sets the channel for leave messages')
-      .addChannelOption(option => option.setName('channel').setDescription('Select the leave channel').setRequired(true))
+      .addChannelOption(option => 
+        option.setName('channel')
+          .setDescription('Select the leave channel')
+          .setRequired(true)
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
@@ -223,13 +333,18 @@ client.once('clientReady', async () => {
           .addChoices(
             { name: 'Enable', value: 'on' },
             { name: 'Disable', value: 'off' }
-          ))
+          )
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
       .setName('giveaway')
       .setDescription('Host an advanced giveaway with preset or custom time')
-      .addStringOption(option => option.setName('prize').setDescription('The prize being given away').setRequired(true))
+      .addStringOption(option => 
+        option.setName('prize')
+          .setDescription('The prize being given away')
+          .setRequired(true)
+      )
       .addStringOption(option =>
         option.setName('time')
           .setDescription('Select a preset time OR select Custom')
@@ -242,9 +357,18 @@ client.once('clientReady', async () => {
             { name: '12 Hours', value: '12h' },
             { name: '1 Day', value: '1d' },
             { name: 'Custom Time', value: 'custom' }
-          ))
-      .addStringOption(option => option.setName('custom_time').setDescription('Example: 15m, 2h (Only if Custom is selected)').setRequired(false))
-      .addIntegerOption(option => option.setName('winners').setDescription('Number of winners (Default: 1)').setRequired(false))
+          )
+      )
+      .addStringOption(option => 
+        option.setName('custom_time')
+          .setDescription('Example: 15m, 2h (Only if Custom is selected)')
+          .setRequired(false)
+      )
+      .addIntegerOption(option => 
+        option.setName('winners')
+          .setDescription('Number of winners (Default: 1)')
+          .setRequired(false)
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
@@ -254,24 +378,52 @@ client.once('clientReady', async () => {
         subcommand
           .setName('add')
           .setDescription('Auto-post latest YouTube videos to a Discord channel')
-          .addStringOption(option => option.setName('username').setDescription('YouTube handle').setRequired(true))
-          .addChannelOption(option => option.setName('channel').setDescription('Discord channel').setRequired(true))
+          .addStringOption(option => 
+            option.setName('username')
+              .setDescription('YouTube handle')
+              .setRequired(true)
+          )
+          .addChannelOption(option => 
+            option.setName('channel')
+              .setDescription('Discord channel')
+              .setRequired(true)
+          )
       )
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
       .setName('reactionrole')
       .setDescription('Sends the self-assignable role panel')
-      .addRoleOption(option => option.setName('role1').setDescription('First role').setRequired(true))
-      .addRoleOption(option => option.setName('role2').setDescription('Second role').setRequired(true))
+      .addRoleOption(option => 
+        option.setName('role1')
+          .setDescription('First role')
+          .setRequired(true)
+      )
+      .addRoleOption(option => 
+        option.setName('role2')
+          .setDescription('Second role')
+          .setRequired(true)
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
       .setName('embed')
       .setDescription('Creates a custom embed message in the channel')
-      .addStringOption(option => option.setName('title').setDescription('The embed title').setRequired(true))
-      .addStringOption(option => option.setName('description').setDescription('The embed description').setRequired(true))
-      .addStringOption(option => option.setName('color').setDescription('Hex color code (e.g., #FF0000)').setRequired(false))
+      .addStringOption(option => 
+        option.setName('title')
+          .setDescription('The embed title')
+          .setRequired(true)
+      )
+      .addStringOption(option => 
+        option.setName('description')
+          .setDescription('The embed description')
+          .setRequired(true)
+      )
+      .addStringOption(option => 
+        option.setName('color')
+          .setDescription('Hex color code (e.g., #FF0000)')
+          .setRequired(false)
+      )
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   ].map(command => command.toJSON());
@@ -389,7 +541,10 @@ client.on('interactionCreate', async interaction => {
 
       const existingChannel = guild.channels.cache.find(c => c.name === channelName);
       if (existingChannel) {
-        return interaction.reply({ content: `You already have an open ticket for this category in ${existingChannel}!`, flags: MessageFlags.Ephemeral });
+        return interaction.reply({ 
+          content: `You already have an open ticket for this category in ${existingChannel}!`, 
+          flags: MessageFlags.Ephemeral 
+        });
       }
 
       const ticketChannel = await guild.channels.create({
@@ -402,7 +557,10 @@ client.on('interactionCreate', async interaction => {
       });
 
       const closeButton = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('close_ticket').setLabel('🔒 Close Ticket').setStyle(ButtonStyle.Danger)
+        new ButtonBuilder()
+          .setCustomId('close_ticket')
+          .setLabel('🔒 Close Ticket')
+          .setStyle(ButtonStyle.Danger)
       );
 
       const embed = new EmbedBuilder()
@@ -411,12 +569,24 @@ client.on('interactionCreate', async interaction => {
         .setDescription(`Hello ${interaction.user},\nThank you for opening a ticket regarding **${category}**.\nPlease describe your issue or request below.`)
         .setTimestamp();
 
-      await ticketChannel.send({ content: `${interaction.user}`, embeds: [embed], components: [closeButton] });
-      await interaction.reply({ content: `Your support ticket has been created: ${ticketChannel}`, flags: MessageFlags.Ephemeral });
+      await ticketChannel.send({ 
+        content: `${interaction.user}`, 
+        embeds: [embed], 
+        components: [closeButton] 
+      });
+      
+      await interaction.reply({ 
+        content: `Your support ticket has been created: ${ticketChannel}`, 
+        flags: MessageFlags.Ephemeral 
+      });
     }
 
     if (interaction.customId === 'close_ticket') {
-      await interaction.reply({ content: '🔒 Closing ticket and generating transcript...', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ 
+        content: '🔒 Closing ticket and generating transcript...', 
+        flags: MessageFlags.Ephemeral 
+      });
+      
       try {
         const channel = interaction.channel;
         const messages = await channel.messages.fetch({ limit: 100 });
@@ -429,14 +599,21 @@ client.on('interactionCreate', async interaction => {
       } catch (err) {
         console.error('Transcript error:', err);
       }
+      
       setTimeout(() => interaction.channel.delete().catch(() => {}), 5000);
     }
 
     if (interaction.customId.startsWith('enter_gwy_')) {
       const messageId = interaction.customId.split('_')[2];
       const giveaway = activeGiveaways.get(messageId);
-      if (!giveaway) return interaction.reply({ content: 'This giveaway has already ended.', flags: MessageFlags.Ephemeral });
-      if (giveaway.participants.has(interaction.user.id)) return interaction.reply({ content: 'You are already entered!', flags: MessageFlags.Ephemeral });
+      
+      if (!giveaway) {
+        return interaction.reply({ content: 'This giveaway has already ended.', flags: MessageFlags.Ephemeral });
+      }
+      
+      if (giveaway.participants.has(interaction.user.id)) {
+        return interaction.reply({ content: 'You are already entered!', flags: MessageFlags.Ephemeral });
+      }
       
       giveaway.participants.add(interaction.user.id);
       await interaction.reply({ content: '🎉 You have successfully entered the giveaway!', flags: MessageFlags.Ephemeral });
@@ -445,7 +622,10 @@ client.on('interactionCreate', async interaction => {
     if (interaction.customId.startsWith('role_')) {
       const roleId = interaction.customId.split('_')[1];
       const role = interaction.guild.roles.cache.get(roleId);
-      if (!role) return interaction.reply({ content: 'Role not found!', flags: MessageFlags.Ephemeral });
+      
+      if (!role) {
+        return interaction.reply({ content: 'Role not found!', flags: MessageFlags.Ephemeral });
+      }
 
       const member = interaction.member;
       if (member.roles.cache.has(roleId)) {
@@ -492,6 +672,7 @@ client.on('interactionCreate', async interaction => {
       .setTitle(`📊 ${guild.name} Member Statistics`)
       .setDescription(`Total Members: **${guild.memberCount}**`)
       .setTimestamp();
+      
     await interaction.reply({ embeds: [embed] });
   }
   else if (commandName === 'afk') {
@@ -502,7 +683,12 @@ client.on('interactionCreate', async interaction => {
   else if (commandName === 'avatar') {
     const targetUser = options.getUser('user') || interaction.user;
     const avatarUrl = targetUser.displayAvatarURL({ size: 1024, dynamic: true });
-    const embed = new EmbedBuilder().setColor('#2b2d31').setTitle(`${targetUser.username}'s Avatar`).setImage(avatarUrl);
+    
+    const embed = new EmbedBuilder()
+      .setColor('#2b2d31')
+      .setTitle(`${targetUser.username}'s Avatar`)
+      .setImage(avatarUrl);
+      
     await interaction.reply({ embeds: [embed] });
   }
   else if (commandName === 'serverinfo') {
@@ -517,6 +703,7 @@ client.on('interactionCreate', async interaction => {
         { name: '📅 Created On', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:D>`, inline: true }
       )
       .setTimestamp();
+      
     await interaction.reply({ embeds: [embed] });
   }
   else if (commandName === 'userinfo') {
@@ -526,24 +713,35 @@ client.on('interactionCreate', async interaction => {
       .setAuthor({ name: targetUser.tag, iconURL: targetUser.displayAvatarURL({ dynamic: true }) })
       .addFields({ name: '🆔 User ID', value: targetUser.id, inline: true })
       .setTimestamp();
+      
     await interaction.reply({ embeds: [embed] });
   }
   else if (commandName === 'remind') {
     const minutes = options.getInteger('minutes');
     const reminderMessage = options.getString('message');
+    
     await interaction.reply({ content: `✅ Reminder set for ${minutes} minute(s).`, flags: MessageFlags.Ephemeral });
+    
     setTimeout(() => {
       interaction.user.send(`⏰ **Reminder:** ${reminderMessage}`).catch(() => {});
     }, minutes * 60 * 1000);
   }
   else if (commandName === 'account') {
-    if (!process.env.YOUTUBE_API_KEY) return interaction.reply({ content: 'YouTube API key missing!', flags: MessageFlags.Ephemeral });
+    if (!process.env.YOUTUBE_API_KEY) {
+      return interaction.reply({ content: 'YouTube API key missing!', flags: MessageFlags.Ephemeral });
+    }
+    
     await interaction.deferReply();
+    
     try {
       const cleanHandle = options.getString('username').replace('@', '');
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(cleanHandle)}&type=channel&key=${process.env.YOUTUBE_API_KEY}`;
       const searchRes = await axios.get(searchUrl);
-      if (!searchRes.data.items || searchRes.data.items.length === 0) return interaction.editReply('Channel not found!');
+      
+      if (!searchRes.data.items || searchRes.data.items.length === 0) {
+        return interaction.editReply('Channel not found!');
+      }
+      
       const channelId = searchRes.data.items[0].id.channelId;
       const detailsUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}&key=${process.env.YOUTUBE_API_KEY}`;
       const detailsRes = await axios.get(detailsUrl);
@@ -556,6 +754,7 @@ client.on('interactionCreate', async interaction => {
           { name: '📊 Subscribers', value: Number(chData.statistics.subscriberCount).toLocaleString(), inline: true },
           { name: '👁️ Total Views', value: Number(chData.statistics.viewCount).toLocaleString(), inline: true }
         );
+        
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
       await interaction.editReply('Error fetching YouTube data.');
@@ -565,7 +764,9 @@ client.on('interactionCreate', async interaction => {
   // --- Admin/Mod Handlers (Including Snipe & Poll) ---
   else if (commandName === 'snipe') {
     const snipedMessage = snipeCache.get(channel.id);
-    if (!snipedMessage) return interaction.reply({ content: '❌ No recent deleted messages to snipe!', flags: MessageFlags.Ephemeral });
+    if (!snipedMessage) {
+      return interaction.reply({ content: '❌ No recent deleted messages to snipe!', flags: MessageFlags.Ephemeral });
+    }
 
     const embed = new EmbedBuilder()
       .setColor('#FF0000')
@@ -581,9 +782,11 @@ client.on('interactionCreate', async interaction => {
       .setTitle('📊 Server Poll')
       .setDescription(`**${options.getString('question')}**\n\n🇦 ${options.getString('option1')}\n\n🇧 ${options.getString('option2')}`)
       .setTimestamp();
+      
     const pollMessage = await channel.send({ embeds: [embed] });
     await pollMessage.react('🇦');
     await pollMessage.react('🇧');
+    
     await interaction.reply({ content: 'Poll created!', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'say') {
@@ -615,14 +818,24 @@ client.on('interactionCreate', async interaction => {
     const targetUser = options.getUser('user');
     const minutes = options.getInteger('minutes');
     const member = await guild.members.fetch(targetUser.id).catch(() => null);
-    await member.timeout(minutes * 60 * 1000);
-    await interaction.reply({ content: `Timed out ${targetUser.tag}.` });
+    
+    if (member) {
+      await member.timeout(minutes * 60 * 1000);
+      await interaction.reply({ content: `Timed out ${targetUser.tag}.` });
+    } else {
+      await interaction.reply({ content: 'Could not find that member.', flags: MessageFlags.Ephemeral });
+    }
   }
   else if (commandName === 'kick') {
     const targetUser = options.getUser('user');
     const member = await guild.members.fetch(targetUser.id).catch(() => null);
-    await member.kick();
-    await interaction.reply({ content: `Kicked ${targetUser.tag}.` });
+    
+    if (member) {
+      await member.kick();
+      await interaction.reply({ content: `Kicked ${targetUser.tag}.` });
+    } else {
+      await interaction.reply({ content: 'Could not find that member.', flags: MessageFlags.Ephemeral });
+    }
   }
   else if (commandName === 'ban') {
     const targetUser = options.getUser('user');
@@ -632,9 +845,11 @@ client.on('interactionCreate', async interaction => {
   else if (commandName === 'ticketsetup') {
     const title = options.getString('title');
     const desc = options.getString('description');
+    
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('ticket_btn_Support').setLabel('Support').setStyle(ButtonStyle.Secondary)
     );
+    
     const embed = new EmbedBuilder().setTitle(title).setDescription(desc);
     await channel.send({ embeds: [embed], components: [row] });
     await interaction.reply({ content: 'Ticket panel deployed!', flags: MessageFlags.Ephemeral });
@@ -661,9 +876,14 @@ client.on('interactionCreate', async interaction => {
   else if (commandName === 'giveaway') {
     const prize = options.getString('prize');
     const durationMs = parseTime(options.getString('time') === 'custom' ? options.getString('custom_time') : options.getString('time'));
-    const endTime = Date.now() + durationMs;
+    
+    if (!durationMs) {
+      return interaction.reply({ content: 'Invalid time duration provided!', flags: MessageFlags.Ephemeral });
+    }
+
     const sentMsg = await channel.send({ content: `🎉 Giveaway for **${prize}** started!` });
     activeGiveaways.set(sentMsg.id, { prize, participants: new Set() });
+    
     await interaction.reply({ content: 'Giveaway started!', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'notify') {
@@ -672,12 +892,17 @@ client.on('interactionCreate', async interaction => {
   }
   else if (commandName === 'reactionrole') {
     const role1 = options.getRole('role1');
-    const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`role_${role1.id}`).setLabel(role1.name).setStyle(ButtonStyle.Primary));
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`role_${role1.id}`).setLabel(role1.name).setStyle(ButtonStyle.Primary)
+    );
+    
     await channel.send({ embeds: [new EmbedBuilder().setTitle('Reaction Roles')], components: [row] });
     await interaction.reply({ content: 'Panel sent!', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'embed') {
-    await channel.send({ embeds: [new EmbedBuilder().setTitle(options.getString('title')).setDescription(options.getString('description'))] });
+    await channel.send({ 
+      embeds: [new EmbedBuilder().setTitle(options.getString('title')).setDescription(options.getString('description'))] 
+    });
     await interaction.reply({ content: 'Embed sent!', flags: MessageFlags.Ephemeral });
   }
 });
