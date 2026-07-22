@@ -539,7 +539,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply();
 
     try {
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-002' });
+      const model = genAI.getGenerativeModel({ model: 'models/gemini-2.5-flash' });
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const aiReply = response.text() || 'No response generated.';
@@ -553,8 +553,8 @@ client.on('interactionCreate', async interaction => {
 
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {
-      console.error(err);
-      await interaction.editReply('❌ Failed to fetch response from Gemini AI. Please check API Key configuration.');
+      console.error('Gemini API Error:', err);
+      await interaction.editReply(`❌ Failed to fetch response from Gemini AI. Error: \`${err.message || 'Unknown error'}\``);
     }
   }
 
