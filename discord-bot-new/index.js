@@ -711,7 +711,7 @@ client.on('interactionCreate', async interaction => {
 
   if (!interaction.isChatInputCommand()) return;
 
-  const { commandName, options, channel, guild } = interaction;
+  const { commandName, options, channel, guild, member } = interaction;
 
   // --- Public Command Handlers ---
   if (commandName === 'askai') {
@@ -832,8 +832,11 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  // --- Admin/Mod Handlers ---
+  // --- Admin/Mod Handlers (With Strict Verification) ---
   else if (commandName === 'snipe') {
+    if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const snipedMessage = snipeCache.get(channel.id);
     if (!snipedMessage) {
       return interaction.reply({ content: '❌ No recent deleted messages to snipe!', flags: MessageFlags.Ephemeral });
@@ -848,6 +851,9 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'poll') {
+    if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const embed = new EmbedBuilder()
       .setColor('#5865F2')
       .setTitle('📊 Server Poll')
@@ -861,14 +867,23 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: 'Poll created!', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'say') {
+    if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     await interaction.channel.send(options.getString('message'));
     await interaction.reply({ content: 'Sent!', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'lock') {
+    if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: false });
     await interaction.reply('Channel locked! 🔒');
   }
   else if (commandName === 'lockdown') {
+    if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const action = options.getString('action');
     guild.channels.cache.filter(c => c.type === ChannelType.GuildText).forEach(async ch => {
       await ch.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: action === 'unlock' });
@@ -876,47 +891,65 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply(action === 'lock' ? '🚨 Lockdown active!' : '✅ Lockdown lifted!');
   }
   else if (commandName === 'purge') {
+    if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const count = options.getInteger('count');
     await channel.bulkDelete(count, true);
     await interaction.reply({ content: `Deleted ${count} messages.`, flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'slowmode') {
+    if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const seconds = options.getInteger('seconds');
     await channel.setRateLimitPerUser(seconds);
     await interaction.reply({ content: `Slowmode set to ${seconds}s.` });
   }
   else if (commandName === 'timeout') {
+    if (!member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const targetUser = options.getUser('user');
     const minutes = options.getInteger('minutes');
     const reason = options.getString('reason') || 'No reason provided';
-    const member = await guild.members.fetch(targetUser.id).catch(() => null);
+    const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
     
-    if (member) {
-      await member.timeout(minutes * 60 * 1000, reason);
+    if (targetMember) {
+      await targetMember.timeout(minutes * 60 * 1000, reason);
       await interaction.reply({ content: `Timed out ${targetUser.tag} for ${minutes} minute(s). Reason: ${reason}` });
     } else {
       await interaction.reply({ content: 'Could not find that member.', flags: MessageFlags.Ephemeral });
     }
   }
   else if (commandName === 'kick') {
+    if (!member.permissions.has(PermissionFlagsBits.KickMembers)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const targetUser = options.getUser('user');
     const reason = options.getString('reason') || 'No reason provided';
-    const member = await guild.members.fetch(targetUser.id).catch(() => null);
+    const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
     
-    if (member) {
-      await member.kick(reason);
+    if (targetMember) {
+      await targetMember.kick(reason);
       await interaction.reply({ content: `Kicked ${targetUser.tag}. Reason: ${reason}` });
     } else {
       await interaction.reply({ content: 'Could not find that member.', flags: MessageFlags.Ephemeral });
     }
   }
   else if (commandName === 'ban') {
+    if (!member.permissions.has(PermissionFlagsBits.BanMembers)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const targetUser = options.getUser('user');
     const reason = options.getString('reason') || 'No reason provided';
     await guild.members.ban(targetUser.id, { reason });
     await interaction.reply({ content: `Banned ${targetUser.tag}. Reason: ${reason}` });
   }
   else if (commandName === 'unban') {
+    if (!member.permissions.has(PermissionFlagsBits.BanMembers)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const userId = options.getString('userid');
     try {
       await guild.members.unban(userId);
@@ -926,6 +959,9 @@ client.on('interactionCreate', async interaction => {
     }
   }
   else if (commandName === 'warn') {
+    if (!member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const targetUser = options.getUser('user');
     const reason = options.getString('reason');
     
@@ -948,6 +984,9 @@ client.on('interactionCreate', async interaction => {
     }
   }
   else if (commandName === 'warnings') {
+    if (!member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const targetUser = options.getUser('user');
     const warns = userWarnings.get(targetUser.id) || [];
 
@@ -965,22 +1004,28 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'nick') {
+    if (!member.permissions.has(PermissionFlagsBits.ManageNicknames)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const targetUser = options.getUser('user');
     const nickname = options.getString('nickname') || null;
-    const member = await guild.members.fetch(targetUser.id).catch(() => null);
+    const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
 
-    if (!member) {
+    if (!targetMember) {
       return interaction.reply({ content: 'Member not found!', flags: MessageFlags.Ephemeral });
     }
 
     try {
-      await member.setNickname(nickname);
+      await targetMember.setNickname(nickname);
       await interaction.reply({ content: `Successfully updated nickname for **${targetUser.tag}**.` });
     } catch (err) {
       await interaction.reply({ content: `Failed to change nickname. Ensure my role is higher than the target user's role.`, flags: MessageFlags.Ephemeral });
     }
   }
   else if (commandName === 'ticketsetup') {
+    if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const title = options.getString('title');
     const desc = options.getString('description');
     
@@ -993,6 +1038,9 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: 'Ticket panel deployed!', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'transcript') {
+    if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const messages = await channel.messages.fetch({ limit: 100 });
     const transcriptArr = messages.reverse().map(m => `${m.author.tag}: ${m.content}`).join('\n');
@@ -1000,18 +1048,30 @@ client.on('interactionCreate', async interaction => {
     await interaction.editReply({ files: [new AttachmentBuilder(buffer, { name: 'transcript.txt' })] });
   }
   else if (commandName === 'setwelcome') {
+    if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     config.welcomeChannelId = options.getChannel('channel').id;
     await interaction.reply({ content: 'Welcome channel set!', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'setleave') {
+    if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     config.leaveChannelId = options.getChannel('channel').id;
     await interaction.reply({ content: 'Leave channel set!', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'automod') {
+    if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     config.autoModEnabled = (options.getString('status') === 'on');
     await interaction.reply({ content: 'AutoMod updated!', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'giveaway') {
+    if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const prize = options.getString('prize');
     const durationMs = parseTime(options.getString('time') === 'custom' ? options.getString('custom_time') : options.getString('time'));
     
@@ -1025,10 +1085,16 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: 'Giveaway started!', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'notify') {
+    if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     ytSubscriptions.set(options.getString('username'), { discordChannelId: options.getChannel('channel').id, lastVideoId: null });
     await interaction.reply({ content: 'Notify setup complete!', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'reactionrole') {
+    if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const role1 = options.getRole('role1');
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`role_${role1.id}`).setLabel(role1.name).setStyle(ButtonStyle.Primary)
@@ -1038,12 +1104,18 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: 'Panel sent!', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'embed') {
+    if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     await channel.send({ 
       embeds: [new EmbedBuilder().setTitle(options.getString('title')).setDescription(options.getString('description'))] 
     });
     await interaction.reply({ content: 'Embed sent!', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'embed-advanced') {
+    if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const title = options.getString('title');
     const description = options.getString('description');
     const color = options.getString('color') || '#5865F2';
@@ -1062,6 +1134,9 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: 'Advanced embed sent!', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'poll-advanced') {
+    if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+    }
     const question = options.getString('question');
     const opt1 = options.getString('option1');
     const opt2 = options.getString('option2');
