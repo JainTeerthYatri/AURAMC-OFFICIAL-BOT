@@ -11,9 +11,7 @@ const {
   Routes,
   SlashCommandBuilder,
   MessageFlags,
-  EmbedBuilder,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder
+  EmbedBuilder
 } = require('discord.js');
 const express = require('express');
 const axios = require('axios');
@@ -101,9 +99,16 @@ client.once('clientReady', async () => {
           .setRequired(true))
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
+    // NEW CUSTOM TICKET SETUP COMMAND
     new SlashCommandBuilder()
       .setName('ticketsetup')
-      .setDescription('Sends the advanced dropdown support ticket panel')
+      .setDescription('Creates a customizable support ticket panel')
+      .addStringOption(option => option.setName('title').setDescription('Title of the ticket panel').setRequired(true))
+      .addStringOption(option => option.setName('description').setDescription('Description inside the ticket panel').setRequired(true))
+      .addStringOption(option => option.setName('button1').setDescription('Name for the 1st ticket button (e.g. Support)').setRequired(true))
+      .addStringOption(option => option.setName('button2').setDescription('Name for the 2nd ticket button (Optional)').setRequired(false))
+      .addStringOption(option => option.setName('button3').setDescription('Name for the 3rd ticket button (Optional)').setRequired(false))
+      .addStringOption(option => option.setName('button4').setDescription('Name for the 4th ticket button (Optional)').setRequired(false))
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
@@ -300,20 +305,26 @@ client.on('messageCreate', async message => {
   }
 });
 
+// BUTTON INTERACTIONS FOR TICKET, GIVEAWAY, ETC.
 client.on('interactionCreate', async interaction => {
-  if (interaction.isStringSelectMenu()) {
-    if (interaction.customId === 'ticket_select_menu') {
-      const selectedCategory = interaction.values[0];
+  if (interaction.isButton()) {
+    
+    // 1. TICKET CREATION LOGIC (Custom Buttons)
+    if (interaction.customId.startsWith('ticket_btn_')) {
+      const category = interaction.customId.replace('ticket_btn_', ''); // Extract the button name
       const guild = interaction.guild;
-      const userName = interaction.user.username;
+      
+      // Make channel name safe (e.g. "Buy Bot" -> "ticket-buy-bot-username")
+      const safeCategory = category.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      const channelName = `ticket-${safeCategory}-${interaction.user.username.toLowerCase()}`;
 
-      const existingChannel = guild.channels.cache.find(c => c.name === `ticket-${selectedCategory}-${userName.toLowerCase()}`);
+      const existingChannel = guild.channels.cache.find(c => c.name === channelName);
       if (existingChannel) {
-        return interaction.reply({ content: `You already have an open ticket in ${existingChannel}!`, flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: `You already have an open ticket for this category in ${existingChannel}!`, flags: MessageFlags.Ephemeral });
       }
 
       const ticketChannel = await guild.channels.create({
-        name: `ticket-${selectedCategory}-${userName}`,
+        name: channelName,
         type: ChannelType.GuildText,
         permissionOverwrites: [
           { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -327,21 +338,21 @@ client.on('interactionCreate', async interaction => {
 
       const embed = new EmbedBuilder()
         .setColor('#5865F2')
-        .setTitle(`Support Ticket: ${selectedCategory.toUpperCase()}`)
-        .setDescription(`Hello ${interaction.user},\nThank you for reaching out to support. Please describe your issue in detail below.`)
+        .setTitle(`Support Ticket: ${category}`)
+        .setDescription(`Hello ${interaction.user},\nThank you for opening a ticket regarding **${category}**.\nPlease describe your issue or request in detail below and our staff will be with you shortly.`)
         .setTimestamp();
 
       await ticketChannel.send({ content: `${interaction.user}`, embeds: [embed], components: [closeButton] });
       await interaction.reply({ content: `Your support ticket has been created: ${ticketChannel}`, flags: MessageFlags.Ephemeral });
     }
-  }
 
-  if (interaction.isButton()) {
+    // 2. CLOSE TICKET
     if (interaction.customId === 'close_ticket') {
       await interaction.reply({ content: 'Closing ticket in 5 seconds...', flags: MessageFlags.Ephemeral });
       setTimeout(() => interaction.channel.delete(), 5000);
     }
 
+    // 3. ENTER GIVEAWAY
     if (interaction.customId.startsWith('enter_gwy_')) {
       const messageId = interaction.customId.split('_')[2];
       const giveaway = activeGiveaways.get(messageId);
@@ -352,6 +363,7 @@ client.on('interactionCreate', async interaction => {
       await interaction.reply({ content: '🎉 You have successfully entered the giveaway!', flags: MessageFlags.Ephemeral });
     }
 
+    // 4. REACTION ROLE
     if (interaction.customId.startsWith('role_')) {
       const roleId = interaction.customId.split('_')[1];
       const role = interaction.guild.roles.cache.get(roleId);
@@ -395,23 +407,36 @@ client.on('interactionCreate', async interaction => {
     await channel.bulkDelete(count, true);
     await interaction.reply({ content: `Successfully deleted ${count} messages.`, flags: MessageFlags.Ephemeral });
   }
+  
+  // LOGIC FOR THE NEW TICKET SETUP COMMAND
   else if (commandName === 'ticketsetup') {
-    const selectMenu = new StringSelectMenuBuilder()
-      .setCustomId('ticket_select_menu')
-      .setPlaceholder('Select a ticket category...')
-      .addOptions(
-        new StringSelectMenuOptionBuilder().setLabel('General Support').setDescription('Get help with general server questions').setValue('general').setEmoji('💬'),
-        new StringSelectMenuOptionBuilder().setLabel('Bug Report').setDescription('Report technical issues or bot bugs').setValue('bug').setEmoji('🐛'),
-        new StringSelectMenuOptionBuilder().setLabel('Partnership').setDescription('Inquire about server partnerships or collaborations').setValue('partnership').setEmoji('🤝')
-      );
-    const row = new ActionRowBuilder().addComponents(selectMenu);
+    const title = options.getString('title');
+    const desc = options.getString('description');
+    
+    // Get up to 4 custom buttons
+    const btn1 = options.getString('button1');
+    const btn2 = options.getString('button2');
+    const btn3 = options.getString('button3');
+    const btn4 = options.getString('button4');
+
     const embed = new EmbedBuilder()
       .setColor('#2b2d31')
-      .setTitle('🎫 Advanced Support Center')
-      .setDescription('Need assistance? Please select the appropriate category from the dropdown menu below to open a private ticket channel.');
+      .setTitle(title)
+      .setDescription(desc)
+      .setFooter({ text: 'Select a category below to open a ticket' });
+
+    const row = new ActionRowBuilder();
+    
+    // Dynamically add buttons based on user input
+    if (btn1) row.addComponents(new ButtonBuilder().setCustomId(`ticket_btn_${btn1}`).setLabel(btn1).setStyle(ButtonStyle.Secondary));
+    if (btn2) row.addComponents(new ButtonBuilder().setCustomId(`ticket_btn_${btn2}`).setLabel(btn2).setStyle(ButtonStyle.Secondary));
+    if (btn3) row.addComponents(new ButtonBuilder().setCustomId(`ticket_btn_${btn3}`).setLabel(btn3).setStyle(ButtonStyle.Secondary));
+    if (btn4) row.addComponents(new ButtonBuilder().setCustomId(`ticket_btn_${btn4}`).setLabel(btn4).setStyle(ButtonStyle.Secondary));
+
     await channel.send({ embeds: [embed], components: [row] });
-    await interaction.reply({ content: 'Advanced ticket panel successfully deployed!', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: '✅ Custom ticket panel successfully deployed!', flags: MessageFlags.Ephemeral });
   }
+
   else if (commandName === 'setwelcome') {
     config.welcomeChannelId = options.getChannel('channel').id;
     await interaction.reply({ content: `Welcome channel set!`, flags: MessageFlags.Ephemeral });
