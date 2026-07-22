@@ -18,7 +18,7 @@ const express = require('express');
 const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Initialize Gemini AI (Ensure GEMINI_API_KEY is in your Render Environment Variables)
+// Initialize AURAMC AI Engine
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Express server to prevent Render Web Service from sleeping
@@ -117,7 +117,7 @@ client.once('clientReady', async () => {
       .addStringOption(option => option.setName('button4').setDescription('Name for the 4th ticket button (Optional)').setRequired(false))
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
-    // NEW FEATURES
+    // FEATURES & NEW MODERATION UTILITIES
     new SlashCommandBuilder()
       .setName('transcript')
       .setDescription('Saves and exports the current ticket chat history into a text file')
@@ -134,8 +134,40 @@ client.once('clientReady', async () => {
 
     new SlashCommandBuilder()
       .setName('askai')
-      .setDescription('Ask anything to the AI directly on Discord')
-      .addStringOption(option => option.setName('prompt').setDescription('Your question or prompt for the AI').setRequired(true)),
+      .setDescription('Ask anything to AURAMC AI directly on Discord')
+      .addStringOption(option => option.setName('prompt').setDescription('Your question or prompt for AURAMC').setRequired(true)),
+
+    new SlashCommandBuilder()
+      .setName('slowmode')
+      .setDescription('Sets the slowmode delay for the current channel')
+      .addIntegerOption(option => option.setName('seconds').setDescription('Delay in seconds (0 to disable)').setRequired(true))
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+
+    new SlashCommandBuilder()
+      .setName('membercount')
+      .setDescription('Displays current server member statistics'),
+
+    new SlashCommandBuilder()
+      .setName('timeout')
+      .setDescription('Temporarily timeout a member')
+      .addUserOption(option => option.setName('user').setDescription('The user to timeout').setRequired(true))
+      .addIntegerOption(option => option.setName('minutes').setDescription('Duration in minutes').setRequired(true))
+      .addStringOption(option => option.setName('reason').setDescription('Reason for timeout').setRequired(false))
+      .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+
+    new SlashCommandBuilder()
+      .setName('kick')
+      .setDescription('Kick a member from the server')
+      .addUserOption(option => option.setName('user').setDescription('The user to kick').setRequired(true))
+      .addStringOption(option => option.setName('reason').setDescription('Reason for kicking').setRequired(false))
+      .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
+
+    new SlashCommandBuilder()
+      .setName('ban')
+      .setDescription('Ban a member from the server')
+      .addUserOption(option => option.setName('user').setDescription('The user to ban').setRequired(true))
+      .addStringOption(option => option.setName('reason').setDescription('Reason for banning').setRequired(false))
+      .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
 
     new SlashCommandBuilder()
       .setName('setwelcome')
@@ -502,7 +534,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: '✅ Custom ticket panel successfully deployed!', flags: MessageFlags.Ephemeral });
   }
   
-  // NEW COMMAND IMPLEMENTATIONS
+  // COMMAND IMPLEMENTATIONS
   else if (commandName === 'transcript') {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     try {
@@ -539,25 +571,65 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply();
 
     try {
-      const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'models/gemini-1.5-flash' });
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const aiReply = response.text() || 'No response generated.';
       
       const embed = new EmbedBuilder()
         .setColor('#10a37f')
-        .setTitle('🤖 AI Response for AURAMC')
+        .setTitle('🤖 AURAMC Intelligence')
         .setDescription(aiReply.length > 4000 ? aiReply.substring(0, 4000) + '...' : aiReply)
-        .setFooter({ text: `Prompt by ${interaction.user.tag}` })
+        .setFooter({ text: `Requested by ${interaction.user.tag}` })
         .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {
-      console.error('Gemini API Error:', err);
-      await interaction.editReply(`❌ Failed to fetch response from Gemini AI. Error: \`${err.message || 'Unknown error'}\``);
+      console.error('AURAMC AI Error:', err);
+      await interaction.editReply(`❌ Failed to fetch response from AURAMC. Error: \`${err.message || 'Unknown error'}\``);
     }
   }
+  else if (commandName === 'slowmode') {
+    const seconds = options.getInteger('seconds');
+    await channel.setRateLimitPerUser(seconds);
+    await interaction.reply({ content: seconds === 0 ? '✅ Slowmode has been disabled.' : `⏱️ Slowmode set to ${seconds} seconds.` });
+  }
+  else if (commandName === 'membercount') {
+    const embed = new EmbedBuilder()
+      .setColor('#5865F2')
+      .setTitle(`📊 ${guild.name} Member Statistics`)
+      .setDescription(`Total Members: **${guild.memberCount}**`)
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+  }
+  else if (commandName === 'timeout') {
+    const targetUser = options.getUser('user');
+    const minutes = options.getInteger('minutes');
+    const reason = options.getString('reason') || 'No reason provided';
+    const member = await guild.members.fetch(targetUser.id).catch(() => null);
 
+    if (!member) return interaction.reply({ content: '❌ User not found in this server.', flags: MessageFlags.Ephemeral });
+    
+    await member.timeout(minutes * 60 * 1000, reason);
+    await interaction.reply({ content: `🔇 Successfully timed out **${targetUser.tag}** for ${minutes} minute(s). Reason: ${reason}` });
+  }
+  else if (commandName === 'kick') {
+    const targetUser = options.getUser('user');
+    const reason = options.getString('reason') || 'No reason provided';
+    const member = await guild.members.fetch(targetUser.id).catch(() => null);
+
+    if (!member) return interaction.reply({ content: '❌ User not found in this server.', flags: MessageFlags.Ephemeral });
+
+    await member.kick(reason);
+    await interaction.reply({ content: `👢 Successfully kicked **${targetUser.tag}**. Reason: ${reason}` });
+  }
+  else if (commandName === 'ban') {
+    const targetUser = options.getUser('user');
+    const reason = options.getString('reason') || 'No reason provided';
+
+    await guild.members.ban(targetUser.id, { reason });
+    await interaction.reply({ content: `🔨 Successfully banned **${targetUser.tag}**. Reason: ${reason}` });
+  }
   else if (commandName === 'setwelcome') {
     config.welcomeChannelId = options.getChannel('channel').id;
     await interaction.reply({ content: `Welcome channel set!`, flags: MessageFlags.Ephemeral });
