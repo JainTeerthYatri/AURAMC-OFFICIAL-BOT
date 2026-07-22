@@ -16,10 +16,10 @@ const {
 } = require('discord.js');
 const express = require('express');
 const axios = require('axios');
-const { GoogleGenAI } = require('@google/genai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Initialize Gemini AI (Ensure GEMINI_API_KEY is in your .env file)
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Initialize Gemini AI (Ensure GEMINI_API_KEY is in your Render Environment Variables)
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Express server to prevent Render Web Service from sleeping
 const app = express();
@@ -117,7 +117,7 @@ client.once('clientReady', async () => {
       .addStringOption(option => option.setName('button4').setDescription('Name for the 4th ticket button (Optional)').setRequired(false))
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
-    // NEW FEATURES ADDED BELOW
+    // NEW FEATURES
     new SlashCommandBuilder()
       .setName('transcript')
       .setDescription('Saves and exports the current ticket chat history into a text file')
@@ -414,7 +414,6 @@ client.on('interactionCreate', async interaction => {
         const buffer = Buffer.from(transcriptArr, 'utf-8');
         const attachment = new AttachmentBuilder(buffer, { name: `${channel.name}-transcript.txt` });
 
-        // Try sending transcript to system/logs or directly back up before deletion
         await channel.send({ content: 'Here is the chat transcript:', files: [attachment] });
       } catch (err) {
         console.error('Transcript auto-generation error:', err);
@@ -540,12 +539,10 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply();
 
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-      });
-
-      const aiReply = response.text || 'No response generated.';
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const aiReply = response.text() || 'No response generated.';
       
       const embed = new EmbedBuilder()
         .setColor('#10a37f')
