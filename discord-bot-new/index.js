@@ -11,10 +11,15 @@ const {
   Routes,
   SlashCommandBuilder,
   MessageFlags,
-  EmbedBuilder
+  EmbedBuilder,
+  AttachmentBuilder
 } = require('discord.js');
 const express = require('express');
 const axios = require('axios');
+const { GoogleGenAI } = require('@google/genai');
+
+// Initialize Gemini AI (Ensure GEMINI_API_KEY is in your .env file)
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // Express server to prevent Render Web Service from sleeping
 const app = express();
@@ -37,6 +42,8 @@ const config = {
 
 const activeGiveaways = new Map();
 const ytSubscriptions = new Map();
+const snipeCache = new Map(); // Store deleted messages for /snipe
+const afkUsers = new Map();   // Store AFK users for /afk
 
 // Helper function to parse time strings like 10m, 2h, 1d into milliseconds
 function parseTime(timeStr) {
@@ -99,7 +106,6 @@ client.once('clientReady', async () => {
           .setRequired(true))
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
-    // NEW CUSTOM TICKET SETUP COMMAND
     new SlashCommandBuilder()
       .setName('ticketsetup')
       .setDescription('Creates a customizable support ticket panel')
@@ -110,6 +116,26 @@ client.once('clientReady', async () => {
       .addStringOption(option => option.setName('button3').setDescription('Name for the 3rd ticket button (Optional)').setRequired(false))
       .addStringOption(option => option.setName('button4').setDescription('Name for the 4th ticket button (Optional)').setRequired(false))
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+    // NEW FEATURES ADDED BELOW
+    new SlashCommandBuilder()
+      .setName('transcript')
+      .setDescription('Saves and exports the current ticket chat history into a text file')
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+
+    new SlashCommandBuilder()
+      .setName('snipe')
+      .setDescription('Recovers the last deleted message in this channel'),
+
+    new SlashCommandBuilder()
+      .setName('afk')
+      .setDescription('Sets your AFK status so the bot replies when you are pinged')
+      .addStringOption(option => option.setName('reason').setDescription('Reason for being AFK').setRequired(false)),
+
+    new SlashCommandBuilder()
+      .setName('askai')
+      .setDescription('Ask anything to the Gemini AI directly on Discord')
+      .addStringOption(option => option.setName('prompt').setDescription('Your question or prompt for the AI').setRequired(true)),
 
     new SlashCommandBuilder()
       .setName('setwelcome')
@@ -283,8 +309,39 @@ client.on('guildMemberRemove', member => {
   leaveChannel.send(`${member.user.tag} has left the server. We hope to see you again! 👋`);
 });
 
+// SNIPE & AFK LISTENER SYSTEM
+client.on('messageDelete', message => {
+  if (!message.author || message.author.bot) return;
+  snipeCache.set(message.channel.id, {
+    content: message.content || '[No Text Content / Attachment]',
+    author: message.author.tag,
+    avatar: message.author.displayAvatarURL(),
+    timestamp: new Date().toLocaleTimeString()
+  });
+});
+
 client.on('messageCreate', async message => {
-  if (message.author.bot || !config.autoModEnabled) return;
+  if (message.author.bot) return;
+
+  // Check AFK status for sender
+  if (afkUsers.has(message.author.id)) {
+    afkUsers.delete(message.author.id);
+    const welcomeBack = await message.channel.send(`Welcome back ${message.author}, I removed your AFK status!`);
+    setTimeout(() => welcomeBack.delete().catch(() => {}), 5000);
+  }
+
+  // Check if mentioned users are AFK
+  if (message.mentions.users.size > 0) {
+    message.mentions.users.forEach(user => {
+      if (afkUsers.has(user.id)) {
+        const afkData = afkUsers.get(user.id);
+        message.channel.send(`💤 **${user.tag}** is currently AFK: ${afkData.reason}`);
+      }
+    });
+  }
+
+  // Auto-mod features
+  if (!config.autoModEnabled) return;
   const content = message.content.toLowerCase();
   if (content.includes('discord.gg/') || content.includes('discord.com/invite/')) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
@@ -305,16 +362,15 @@ client.on('messageCreate', async message => {
   }
 });
 
-// BUTTON INTERACTIONS FOR TICKET, GIVEAWAY, ETC.
+// INTERACTION HANDLER FOR BUTTONS & COMMANDS
 client.on('interactionCreate', async interaction => {
   if (interaction.isButton()) {
     
-    // 1. TICKET CREATION LOGIC (Custom Buttons)
+    // TICKET CREATION LOGIC
     if (interaction.customId.startsWith('ticket_btn_')) {
-      const category = interaction.customId.replace('ticket_btn_', ''); // Extract the button name
+      const category = interaction.customId.replace('ticket_btn_', '');
       const guild = interaction.guild;
       
-      // Make channel name safe (e.g. "Buy Bot" -> "ticket-buy-bot-username")
       const safeCategory = category.toLowerCase().replace(/[^a-z0-9]/g, '-');
       const channelName = `ticket-${safeCategory}-${interaction.user.username.toLowerCase()}`;
 
@@ -346,13 +402,28 @@ client.on('interactionCreate', async interaction => {
       await interaction.reply({ content: `Your support ticket has been created: ${ticketChannel}`, flags: MessageFlags.Ephemeral });
     }
 
-    // 2. CLOSE TICKET
+    // CLOSE TICKET & AUTO TRANSCRIPT
     if (interaction.customId === 'close_ticket') {
-      await interaction.reply({ content: 'Closing ticket in 5 seconds...', flags: MessageFlags.Ephemeral });
-      setTimeout(() => interaction.channel.delete(), 5000);
+      await interaction.reply({ content: '🔒 Closing ticket and generating transcript...', flags: MessageFlags.Ephemeral });
+      
+      try {
+        const channel = interaction.channel;
+        const messages = await channel.messages.fetch({ limit: 100 });
+        const transcriptArr = messages.reverse().map(m => `[${new Date(m.createdTimestamp).toLocaleString()}] ${m.author.tag}: ${m.content}`).join('\n');
+        
+        const buffer = Buffer.from(transcriptArr, 'utf-8');
+        const attachment = new AttachmentBuilder(buffer, { name: `${channel.name}-transcript.txt` });
+
+        // Try sending transcript to system/logs or directly back up before deletion
+        await channel.send({ content: 'Here is the chat transcript:', files: [attachment] });
+      } catch (err) {
+        console.error('Transcript auto-generation error:', err);
+      }
+
+      setTimeout(() => interaction.channel.delete().catch(() => {}), 5000);
     }
 
-    // 3. ENTER GIVEAWAY
+    // ENTER GIVEAWAY
     if (interaction.customId.startsWith('enter_gwy_')) {
       const messageId = interaction.customId.split('_')[2];
       const giveaway = activeGiveaways.get(messageId);
@@ -363,7 +434,7 @@ client.on('interactionCreate', async interaction => {
       await interaction.reply({ content: '🎉 You have successfully entered the giveaway!', flags: MessageFlags.Ephemeral });
     }
 
-    // 4. REACTION ROLE
+    // REACTION ROLE
     if (interaction.customId.startsWith('role_')) {
       const roleId = interaction.customId.split('_')[1];
       const role = interaction.guild.roles.cache.get(roleId);
@@ -407,13 +478,10 @@ client.on('interactionCreate', async interaction => {
     await channel.bulkDelete(count, true);
     await interaction.reply({ content: `Successfully deleted ${count} messages.`, flags: MessageFlags.Ephemeral });
   }
-  
-  // LOGIC FOR THE NEW TICKET SETUP COMMAND
   else if (commandName === 'ticketsetup') {
     const title = options.getString('title');
     const desc = options.getString('description');
     
-    // Get up to 4 custom buttons
     const btn1 = options.getString('button1');
     const btn2 = options.getString('button2');
     const btn3 = options.getString('button3');
@@ -426,8 +494,6 @@ client.on('interactionCreate', async interaction => {
       .setFooter({ text: 'Select a category below to open a ticket' });
 
     const row = new ActionRowBuilder();
-    
-    // Dynamically add buttons based on user input
     if (btn1) row.addComponents(new ButtonBuilder().setCustomId(`ticket_btn_${btn1}`).setLabel(btn1).setStyle(ButtonStyle.Secondary));
     if (btn2) row.addComponents(new ButtonBuilder().setCustomId(`ticket_btn_${btn2}`).setLabel(btn2).setStyle(ButtonStyle.Secondary));
     if (btn3) row.addComponents(new ButtonBuilder().setCustomId(`ticket_btn_${btn3}`).setLabel(btn3).setStyle(ButtonStyle.Secondary));
@@ -435,6 +501,64 @@ client.on('interactionCreate', async interaction => {
 
     await channel.send({ embeds: [embed], components: [row] });
     await interaction.reply({ content: '✅ Custom ticket panel successfully deployed!', flags: MessageFlags.Ephemeral });
+  }
+  
+  // NEW COMMAND IMPLEMENTATIONS
+  else if (commandName === 'transcript') {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    try {
+      const messages = await channel.messages.fetch({ limit: 100 });
+      const transcriptArr = messages.reverse().map(m => `[${new Date(m.createdTimestamp).toLocaleString()}] ${m.author.tag}: ${m.content}`).join('\n');
+      
+      const buffer = Buffer.from(transcriptArr, 'utf-8');
+      const attachment = new AttachmentBuilder(buffer, { name: `${channel.name}-transcript.txt` });
+
+      await interaction.editReply({ content: '📄 Here is the chat transcript file:', files: [attachment] });
+    } catch (err) {
+      await interaction.editReply('❌ Failed to generate transcript.');
+    }
+  }
+  else if (commandName === 'snipe') {
+    const snipedMessage = snipeCache.get(channel.id);
+    if (!snipedMessage) return interaction.reply({ content: '❌ There are no recent deleted messages to snipe in this channel!', flags: MessageFlags.Ephemeral });
+
+    const embed = new EmbedBuilder()
+      .setColor('#FF0000')
+      .setAuthor({ name: snipedMessage.author, iconURL: snipedMessage.avatar })
+      .setDescription(snipedMessage.content)
+      .setFooter({ text: `Deleted at ${snipedMessage.timestamp}` });
+
+    await interaction.reply({ embeds: [embed] });
+  }
+  else if (commandName === 'afk') {
+    const reason = options.getString('reason') || 'No reason provided';
+    afkUsers.set(interaction.user.id, { reason: reason });
+    await interaction.reply({ content: `💤 You are now marked as AFK: **${reason}**` });
+  }
+  else if (commandName === 'askai') {
+    const prompt = options.getString('prompt');
+    await interaction.deferReply();
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+
+      const aiReply = response.text || 'No response generated.';
+      
+      const embed = new EmbedBuilder()
+        .setColor('#10a37f')
+        .setTitle('🤖 Gemini AI Response')
+        .setDescription(aiReply.length > 4000 ? aiReply.substring(0, 4000) + '...' : aiReply)
+        .setFooter({ text: `Prompt by ${interaction.user.tag}` })
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error(err);
+      await interaction.editReply('❌ Failed to fetch response from Gemini AI. Please check API Key configuration.');
+    }
   }
 
   else if (commandName === 'setwelcome') {
