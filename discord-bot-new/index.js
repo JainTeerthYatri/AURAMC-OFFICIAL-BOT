@@ -131,7 +131,7 @@ client.once('clientReady', async () => {
 
     new SlashCommandBuilder()
       .setName('account')
-      .setDescription('View public YouTube channel details')
+      .setDescription('View professional YouTube channel analytics and overview')
       .addStringOption(option => 
         option.setName('username')
           .setDescription('YouTube channel handle (e.g. @MrBeast)')
@@ -799,7 +799,7 @@ client.on('interactionCreate', async interaction => {
   }
   else if (commandName === 'account') {
     if (!process.env.YOUTUBE_API_KEY) {
-      return interaction.reply({ content: 'YouTube API key missing!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ YouTube API key is missing in environment variables!', flags: MessageFlags.Ephemeral });
     }
     
     await interaction.deferReply();
@@ -810,25 +810,54 @@ client.on('interactionCreate', async interaction => {
       const searchRes = await axios.get(searchUrl);
       
       if (!searchRes.data.items || searchRes.data.items.length === 0) {
-        return interaction.editReply('Channel not found!');
+        return interaction.editReply({ content: '❌ YouTube channel not found with this handle/name!' });
       }
       
       const channelId = searchRes.data.items[0].id.channelId;
-      const detailsUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}&key=${process.env.YOUTUBE_API_KEY}`;
+      const detailsUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,brandingSettings&id=${channelId}&key=${process.env.YOUTUBE_API_KEY}`;
       const detailsRes = await axios.get(detailsUrl);
       const chData = detailsRes.data.items[0];
 
+      const channelTitle = chData.snippet.title;
+      const channelDesc = chData.snippet.description ? (chData.snippet.description.length > 150 ? chData.snippet.description.substring(0, 147) + '...' : chData.snippet.description) : 'No description available.';
+      const thumbnail = chData.snippet.thumbnails?.high?.url || chData.snippet.thumbnails?.default?.url;
+      const customUrl = chData.snippet.customUrl ? `https://www.youtube.com/${chData.snippet.customUrl}` : `https://www.youtube.com/channel/${channelId}`;
+      
+      const subs = Number(chData.statistics.subscriberCount).toLocaleString() || 'Hidden';
+      const views = Number(chData.statistics.viewCount).toLocaleString() || '0';
+      const videos = Number(chData.statistics.videoCount).toLocaleString() || '0';
+      const publishedAt = `<t:${Math.floor(new Date(chData.snippet.publishedAt).getTime() / 1000)}:D>`;
+
+      // Professional UI Embed Design
       const embed = new EmbedBuilder()
-        .setColor('#FF0000')
-        .setTitle(chData.snippet.title)
+        .setColor('#FF0000') // YouTube Red Brand Color
+        .setAuthor({ name: 'YouTube Channel Analytics & Overview', iconURL: 'https://upload.wikimedia.org/wikipedia/commons/e/ef/Youtube_logo_%282013-2017%29.svg' })
+        .setTitle(`📺 ${channelTitle}`)
+        .setURL(customUrl)
+        .setDescription(`> ${channelDesc}\n\n`)
+        .setThumbnail(thumbnail)
         .addFields(
-          { name: '📊 Subscribers', value: Number(chData.statistics.subscriberCount).toLocaleString(), inline: true },
-          { name: '👁️ Total Views', value: Number(chData.statistics.viewCount).toLocaleString(), inline: true }
-        );
-        
-      await interaction.editReply({ embeds: [embed] });
+          { name: '👥 Subscribers', value: `\`${subs}\``, inline: true },
+          { name: '👁️ Total Views', value: `\`${views}\``, inline: true },
+          { name: '🎬 Total Videos', value: `\`${videos}\``, inline: true },
+          { name: '📅 Created On', value: `${publishedAt}`, inline: true },
+          { name: '🔗 Channel Link', value: `[Click Here to Visit Channel](${customUrl})`, inline: false }
+        )
+        .setFooter({ text: `Requested by ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
+        .setTimestamp();
+
+      // Professional Action Row Button Component for Direct Redirect
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setStyle(ButtonStyle.Link)
+          .setLabel('▶️ Visit Channel on YouTube')
+          .setURL(customUrl)
+      );
+
+      await interaction.editReply({ embeds: [embed], components: [row] });
     } catch (error) {
-      await interaction.editReply('Error fetching YouTube data.');
+      console.error('YouTube API Error:', error);
+      await interaction.editReply({ content: '❌ Failed to fetch professional YouTube channel data. Please try again later.' });
     }
   }
 
