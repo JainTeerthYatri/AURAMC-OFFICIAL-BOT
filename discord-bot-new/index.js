@@ -788,28 +788,52 @@ client.on('interactionCreate', async interaction => {
       .setImage(avatarUrl);
       
     await interaction.reply({ embeds: [embed] });
-  }
-  else if (commandName === 'serverinfo') {
+  }else if (commandName === 'serverinfo') {
     const owner = await guild.fetchOwner();
+    const channels = guild.channels.cache;
+    const roles = guild.roles.cache.size;
+    const boosters = guild.premiumSubscriptionCount;
+    const boostTier = guild.premiumTier;
+
     const embed = new EmbedBuilder()
       .setColor('#5865F2')
       .setAuthor({ name: guild.name, iconURL: guild.iconURL({ dynamic: true }) })
       .setThumbnail(guild.iconURL({ dynamic: true }))
       .addFields(
-        { name: '👑 Owner', value: `${owner.user.tag}`, inline: true },
-        { name: '👥 Total Members', value: `${guild.memberCount}`, inline: true },
-        { name: '📅 Created On', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:D>`, inline: true }
+        { name: '👑 Server Owner', value: `<@${owner.id}>`, inline: true },
+        { name: '🆔 Server ID', value: `\`${guild.id}\``, inline: true },
+        { name: '📅 Created On', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:D> (<t:${Math.floor(guild.createdTimestamp / 1000)}:R>)`, inline: false },
+        { name: '👥 Members', value: `Total: **${guild.memberCount}**`, inline: true },
+        { name: '💬 Channels', value: `Text: **${channels.filter(c => c.type === ChannelType.GuildText).size}** | Voice: **${channels.filter(c => c.type === ChannelType.GuildVoice).size}**`, inline: true },
+        { name: '🛡️ Security', value: `Roles: **${roles}** | Boosts: **${boosters}** (Tier ${boostTier})`, inline: false }
       )
+      .setFooter({ text: `Requested by ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
       .setTimestamp();
       
     await interaction.reply({ embeds: [embed] });
   }
   else if (commandName === 'userinfo') {
     const targetUser = options.getUser('user') || interaction.user;
+    const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+    
+    const roles = targetMember ? targetMember.roles.cache.filter(r => r.id !== guild.id).map(r => `<@&${r.id}>`).join(', ') || 'None' : 'Not in server';
+    const joinedAt = targetMember ? `<t:${Math.floor(targetMember.joinedTimestamp / 1000)}:D>` : 'Unknown';
+    const createdAt = `<t:${Math.floor(targetUser.createdTimestamp / 1000)}:D>`;
+
     const embed = new EmbedBuilder()
-      .setColor('#2b2d31')
+      .setColor(targetMember?.displayHexColor || '#2b2d31')
       .setAuthor({ name: targetUser.tag, iconURL: targetUser.displayAvatarURL({ dynamic: true }) })
-      .addFields({ name: '🆔 User ID', value: targetUser.id, inline: true })
+      .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 1024 }))
+      .addFields(
+        { name: '🆔 User ID', value: `\`${targetUser.id}\``, inline: true },
+        { name: '🤖 Bot Account', value: targetUser.bot ? 'Yes' : 'No', inline: true },
+        { name: '\u200b', value: '\u200b', inline: true },
+        { name: '📅 Discord Joined', value: createdAt, inline: true },
+        { name: '📥 Server Joined', value: joinedAt, inline: true },
+        { name: '\u200b', value: '\u200b', inline: true },
+        { name: '🎭 Roles', value: roles.length > 1024 ? roles.substring(0, 1020) + '...' : roles, inline: false }
+      )
+      .setFooter({ text: `Requested by ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
       .setTimestamp();
       
     await interaction.reply({ embeds: [embed] });
