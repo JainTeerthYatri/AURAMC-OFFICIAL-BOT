@@ -12,7 +12,8 @@ const {
   SlashCommandBuilder,
   MessageFlags,
   EmbedBuilder,
-  AttachmentBuilder
+  AttachmentBuilder,
+  StringSelectMenuBuilder
 } = require('discord.js');
 const express = require('express');
 const axios = require('axios');
@@ -71,6 +72,10 @@ client.once('clientReady', async () => {
 
   const commands = [
     // ================= PUBLIC COMMANDS (Visible to Everyone) =================
+    new SlashCommandBuilder()
+      .setName('help')
+      .setDescription('Displays the interactive professional command directory and categories'),
+
     new SlashCommandBuilder()
       .setName('askai')
       .setDescription('Ask anything to AURAMC directly on Discord')
@@ -602,6 +607,60 @@ client.on('messageCreate', async message => {
 });
 
 client.on('interactionCreate', async interaction => {
+  if (interaction.isStringSelectMenu()) {
+    if (interaction.customId === 'help_menu') {
+      const selectedVal = interaction.values[0];
+      let embed = new EmbedBuilder().setColor('#5865F2').setTimestamp();
+
+      if (selectedVal === 'public') {
+        embed.setTitle('📂 Public & Utility Commands')
+          .setDescription('List of all available public commands for users.')
+          .addFields(
+            { name: '/help', value: 'Displays the interactive command directory.' },
+            { name: '/askai', value: 'Interact directly with the AURAMC AI engine.' },
+            { name: '/account', value: 'View professional YouTube channel metrics.' },
+            { name: '/serverinfo', value: 'Displays detailed server specifications.' },
+            { name: '/userinfo', value: 'Displays targeted user information.' },
+            { name: '/avatar', value: 'Fetches high-resolution user avatars.' },
+            { name: '/membercount', value: 'Displays current server census.' },
+            { name: '/afk', value: 'Sets your automated Away-From-Keyboard status.' },
+            { name: '/remind', value: 'Sets a personal scheduled reminder.' }
+          );
+      } else if (selectedVal === 'moderation') {
+        embed.setTitle('🛡️ Moderation & Security Commands')
+          .setDescription('Commands restricted to moderators for server upkeep.')
+          .addFields(
+            { name: '/warn', value: 'Issues a formal strike/warning to a user.' },
+            { name: '/warnings', value: 'Inspects active strikes for a user.' },
+            { name: '/timeout', value: 'Temporarily restricts a member from chatting.' },
+            { name: '/kick', value: 'Removes a member from the guild.' },
+            { name: '/ban', value: 'Permanently bans a member from the guild.' },
+            { name: '/unban', value: 'Revokes a server ban using User ID.' },
+            { name: '/purge', value: 'Bulk deletes message history.' },
+            { name: '/snipe', value: 'Recovers the most recently deleted message.' },
+            { name: '/nick', value: 'Modifies a member nickname.' }
+          );
+      } else if (selectedVal === 'admin') {
+        embed.setTitle('⚙️ Administrator & Utility Commands')
+          .setDescription('High-level configuration and management commands.')
+          .addFields(
+            { name: '/lock / lockdown', value: 'Secures text channels instantly.' },
+            { name: '/slowmode', value: 'Imposes rate limits on channels.' },
+            { name: '/ticketsetup', value: 'Deploys an interactive support ticket panel.' },
+            { name: '/giveaway', value: 'Hosts automated giveaways.' },
+            { name: '/embed / embed-advanced', value: 'Publishes tailored rich embeds.' },
+            { name: '/poll / poll-advanced', value: 'Deploys reaction-based voting polls.' },
+            { name: '/setwelcome / setleave', value: 'Configures welcome and leave channels.' },
+            { name: '/automod', value: 'Toggles automated safety filters.' },
+            { name: '/notify', value: 'Configures YouTube upload alerts.' },
+            { name: '/reactionrole', value: 'Deploys self-assignable role panels.' }
+          );
+      }
+
+      await interaction.update({ embeds: [embed] });
+    }
+  }
+
   if (interaction.isButton()) {
     if (interaction.customId.startsWith('ticket_btn_')) {
       const category = interaction.customId.replace('ticket_btn_', '');
@@ -613,7 +672,7 @@ client.on('interactionCreate', async interaction => {
       const existingChannel = guild.channels.cache.find(c => c.name === channelName);
       if (existingChannel) {
         return interaction.reply({ 
-          content: `You already have an open ticket for this category in ${existingChannel}!`, 
+          content: `You already have an active support ticket open in ${existingChannel}.`, 
           flags: MessageFlags.Ephemeral 
         });
       }
@@ -637,7 +696,7 @@ client.on('interactionCreate', async interaction => {
       const embed = new EmbedBuilder()
         .setColor('#5865F2')
         .setTitle(`Support Ticket: ${category}`)
-        .setDescription(`Hello ${interaction.user},\nThank you for opening a ticket regarding **${category}**.\nPlease describe your issue or request below.`)
+        .setDescription(`Hello ${interaction.user},\nThank you for reaching out to support regarding **${category}**.\nPlease describe your query or concern below in detail.`)
         .setTimestamp();
 
       await ticketChannel.send({ 
@@ -647,14 +706,14 @@ client.on('interactionCreate', async interaction => {
       });
       
       await interaction.reply({ 
-        content: `Your support ticket has been created: ${ticketChannel}`, 
+        content: `Your support ticket has been successfully created: ${ticketChannel}`, 
         flags: MessageFlags.Ephemeral 
       });
     }
 
     if (interaction.customId === 'close_ticket') {
       await interaction.reply({ 
-        content: '🔒 Closing ticket and generating transcript...', 
+        content: '🔒 Closing ticket session and generating chat transcript...', 
         flags: MessageFlags.Ephemeral 
       });
       
@@ -666,9 +725,9 @@ client.on('interactionCreate', async interaction => {
         const buffer = Buffer.from(transcriptArr, 'utf-8');
         const attachment = new AttachmentBuilder(buffer, { name: `${channel.name}-transcript.txt` });
 
-        await channel.send({ content: 'Here is the chat transcript:', files: [attachment] });
+        await channel.send({ content: 'Here is the archived chat transcript:', files: [attachment] });
       } catch (err) {
-        console.error('Transcript error:', err);
+        console.error('Transcript generation error:', err);
       }
       
       setTimeout(() => interaction.channel.delete().catch(() => {}), 5000);
@@ -679,11 +738,11 @@ client.on('interactionCreate', async interaction => {
       const giveaway = activeGiveaways.get(messageId);
       
       if (!giveaway) {
-        return interaction.reply({ content: 'This giveaway has already ended.', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: 'This giveaway session has already concluded.', flags: MessageFlags.Ephemeral });
       }
       
       if (giveaway.participants.has(interaction.user.id)) {
-        return interaction.reply({ content: 'You are already entered!', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: 'You are already registered for this giveaway.', flags: MessageFlags.Ephemeral });
       }
       
       giveaway.participants.add(interaction.user.id);
@@ -695,16 +754,16 @@ client.on('interactionCreate', async interaction => {
       const role = interaction.guild.roles.cache.get(roleId);
       
       if (!role) {
-        return interaction.reply({ content: 'Role not found!', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: 'Target role could not be located.', flags: MessageFlags.Ephemeral });
       }
 
       const member = interaction.member;
       if (member.roles.cache.has(roleId)) {
         await member.roles.remove(roleId);
-        await interaction.reply({ content: `Removed the **${role.name}** role from you!`, flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: `Successfully removed the **${role.name}** role from your profile.`, flags: MessageFlags.Ephemeral });
       } else {
         await member.roles.add(roleId);
-        await interaction.reply({ content: `Given you the **${role.name}** role!`, flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: `Successfully assigned the **${role.name}** role to your profile.`, flags: MessageFlags.Ephemeral });
       }
     }
   }
@@ -714,7 +773,34 @@ client.on('interactionCreate', async interaction => {
   const { commandName, options, channel, guild, member } = interaction;
 
   // --- Public Command Handlers ---
-  if (commandName === 'askai') {
+  if (commandName === 'help') {
+    const embed = new EmbedBuilder()
+      .setColor('#5865F2')
+      .setAuthor({ name: 'AURAMC Command Directory', iconURL: client.user.displayAvatarURL() })
+      .setTitle('📖 Interactive Help Center')
+      .setDescription('Welcome to the official command directory. Please select a specific category from the dropdown menu below to view detailed command listings and their descriptions.')
+      .addFields(
+        { name: '📂 Public Category', value: 'General user utilities, AI engine, and stats.', inline: true },
+        { name: '🛡️ Moderation Category', value: 'Member safety, strikes, and restriction tools.', inline: true },
+        { name: '⚙️ Administrator Category', value: 'Server configuration and advanced setups.', inline: true }
+      )
+      .setFooter({ text: `Requested by ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
+      .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId('help_menu')
+        .setPlaceholder('Select a command category...')
+        .addOptions([
+          { label: 'Public Commands', description: 'View public utilities and AI features', value: 'public', emoji: '📂' },
+          { label: 'Moderation Commands', description: 'View moderation and security tools', value: 'moderation', emoji: '🛡️' },
+          { label: 'Administrator Commands', description: 'View server config and administration tools', value: 'admin', emoji: '⚙️' }
+        ])
+    );
+
+    await interaction.reply({ embeds: [embed], components: [row] });
+  }
+  else if (commandName === 'askai') {
     const prompt = options.getString('prompt');
     await interaction.deferReply();
 
@@ -741,7 +827,7 @@ client.on('interactionCreate', async interaction => {
     const embed = new EmbedBuilder()
       .setColor('#5865F2')
       .setTitle(`📊 ${guild.name} Member Statistics`)
-      .setDescription(`Total Members: **${guild.memberCount}**`)
+      .setDescription(`Total Registered Members: **${guild.memberCount}**`)
       .setTimestamp();
       
     await interaction.reply({ embeds: [embed] });
@@ -749,7 +835,7 @@ client.on('interactionCreate', async interaction => {
   else if (commandName === 'afk') {
     const reason = options.getString('reason') || 'No reason provided';
     afkUsers.set(interaction.user.id, { reason: reason });
-    await interaction.reply({ content: `💤 You are now marked as AFK: **${reason}**` });
+    await interaction.reply({ content: `💤 Your status has been set to AFK: **${reason}**` });
   }
   else if (commandName === 'avatar') {
     const targetUser = options.getUser('user') || interaction.user;
@@ -791,15 +877,15 @@ client.on('interactionCreate', async interaction => {
     const minutes = options.getInteger('minutes');
     const reminderMessage = options.getString('message');
     
-    await interaction.reply({ content: `✅ Reminder set for ${minutes} minute(s).`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: `✅ Reminder successfully scheduled for ${minutes} minute(s) from now.`, flags: MessageFlags.Ephemeral });
     
     setTimeout(() => {
-      interaction.user.send(`⏰ **Reminder:** ${reminderMessage}`).catch(() => {});
+      interaction.user.send(`⏰ **Reminder Alert:** ${reminderMessage}`).catch(() => {});
     }, minutes * 60 * 1000);
   }
   else if (commandName === 'account') {
     if (!process.env.YOUTUBE_API_KEY) {
-      return interaction.reply({ content: '❌ YouTube API key is missing in environment variables!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ YouTube API key is missing in environment variables.', flags: MessageFlags.Ephemeral });
     }
     
     await interaction.deferReply();
@@ -810,7 +896,7 @@ client.on('interactionCreate', async interaction => {
       const searchRes = await axios.get(searchUrl);
       
       if (!searchRes.data.items || searchRes.data.items.length === 0) {
-        return interaction.editReply({ content: '❌ YouTube channel not found with this handle/name!' });
+        return interaction.editReply({ content: '❌ YouTube channel could not be found with this handle or query.' });
       }
       
       const channelId = searchRes.data.items[0].id.channelId;
@@ -828,9 +914,8 @@ client.on('interactionCreate', async interaction => {
       const videos = Number(chData.statistics.videoCount).toLocaleString() || '0';
       const publishedAt = `<t:${Math.floor(new Date(chData.snippet.publishedAt).getTime() / 1000)}:D>`;
 
-      // Professional UI Embed Design
       const embed = new EmbedBuilder()
-        .setColor('#FF0000') // YouTube Red Brand Color
+        .setColor('#FF0000')
         .setAuthor({ name: 'YouTube Channel Analytics & Overview', iconURL: 'https://upload.wikimedia.org/wikipedia/commons/e/ef/Youtube_logo_%282013-2017%29.svg' })
         .setTitle(`📺 ${channelTitle}`)
         .setURL(customUrl)
@@ -846,7 +931,6 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: `Requested by ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
         .setTimestamp();
 
-      // Professional Action Row Button Component for Direct Redirect
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setStyle(ButtonStyle.Link)
@@ -864,11 +948,11 @@ client.on('interactionCreate', async interaction => {
   // --- Admin/Mod Handlers (With Strict Verification) ---
   else if (commandName === 'snipe') {
     if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const snipedMessage = snipeCache.get(channel.id);
     if (!snipedMessage) {
-      return interaction.reply({ content: '❌ No recent deleted messages to snipe!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ No recent deleted messages available to recover.', flags: MessageFlags.Ephemeral });
     }
 
     const embed = new EmbedBuilder()
@@ -881,7 +965,7 @@ client.on('interactionCreate', async interaction => {
   }
   else if (commandName === 'poll') {
     if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const embed = new EmbedBuilder()
       .setColor('#5865F2')
@@ -893,51 +977,51 @@ client.on('interactionCreate', async interaction => {
     await pollMessage.react('🇦');
     await pollMessage.react('🇧');
     
-    await interaction.reply({ content: 'Poll created!', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Poll successfully created and deployed.', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'say') {
     if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     await interaction.channel.send(options.getString('message'));
-    await interaction.reply({ content: 'Sent!', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Message dispatched successfully.', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'lock') {
     if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: false });
-    await interaction.reply('Channel locked! 🔒');
+    await interaction.reply('Channel locked successfully. 🔒');
   }
   else if (commandName === 'lockdown') {
     if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const action = options.getString('action');
     guild.channels.cache.filter(c => c.type === ChannelType.GuildText).forEach(async ch => {
       await ch.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: action === 'unlock' });
     });
-    await interaction.reply(action === 'lock' ? '🚨 Lockdown active!' : '✅ Lockdown lifted!');
+    await interaction.reply(action === 'lock' ? '🚨 Server lockdown protocol activated.' : '✅ Server lockdown protocol lifted.');
   }
   else if (commandName === 'purge') {
     if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const count = options.getInteger('count');
     await channel.bulkDelete(count, true);
-    await interaction.reply({ content: `Deleted ${count} messages.`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: `Successfully purged ${count} messages.`, flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'slowmode') {
     if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const seconds = options.getInteger('seconds');
     await channel.setRateLimitPerUser(seconds);
-    await interaction.reply({ content: `Slowmode set to ${seconds}s.` });
+    await interaction.reply({ content: `Channel slowmode updated to ${seconds} second(s).` });
   }
   else if (commandName === 'timeout') {
     if (!member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const targetUser = options.getUser('user');
     const minutes = options.getInteger('minutes');
@@ -946,14 +1030,14 @@ client.on('interactionCreate', async interaction => {
     
     if (targetMember) {
       await targetMember.timeout(minutes * 60 * 1000, reason);
-      await interaction.reply({ content: `Timed out ${targetUser.tag} for ${minutes} minute(s). Reason: ${reason}` });
+      await interaction.reply({ content: `Successfully timed out ${targetUser.tag} for ${minutes} minute(s). Reason: ${reason}` });
     } else {
-      await interaction.reply({ content: 'Could not find that member.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: 'Target member could not be found.', flags: MessageFlags.Ephemeral });
     }
   }
   else if (commandName === 'kick') {
     if (!member.permissions.has(PermissionFlagsBits.KickMembers)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const targetUser = options.getUser('user');
     const reason = options.getString('reason') || 'No reason provided';
@@ -961,35 +1045,35 @@ client.on('interactionCreate', async interaction => {
     
     if (targetMember) {
       await targetMember.kick(reason);
-      await interaction.reply({ content: `Kicked ${targetUser.tag}. Reason: ${reason}` });
+      await interaction.reply({ content: `Successfully kicked ${targetUser.tag}. Reason: ${reason}` });
     } else {
-      await interaction.reply({ content: 'Could not find that member.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: 'Target member could not be found.', flags: MessageFlags.Ephemeral });
     }
   }
   else if (commandName === 'ban') {
     if (!member.permissions.has(PermissionFlagsBits.BanMembers)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const targetUser = options.getUser('user');
     const reason = options.getString('reason') || 'No reason provided';
     await guild.members.ban(targetUser.id, { reason });
-    await interaction.reply({ content: `Banned ${targetUser.tag}. Reason: ${reason}` });
+    await interaction.reply({ content: `Successfully banned ${targetUser.tag}. Reason: ${reason}` });
   }
   else if (commandName === 'unban') {
     if (!member.permissions.has(PermissionFlagsBits.BanMembers)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const userId = options.getString('userid');
     try {
       await guild.members.unban(userId);
       await interaction.reply({ content: `Successfully unbanned user ID: \`${userId}\`` });
     } catch (err) {
-      await interaction.reply({ content: `Failed to unban user. Make sure the User ID is valid and banned.`, flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: 'Failed to unban user. Ensure the User ID is valid and currently banned.', flags: MessageFlags.Ephemeral });
     }
   }
   else if (commandName === 'warn') {
     if (!member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const targetUser = options.getUser('user');
     const reason = options.getString('reason');
@@ -1004,29 +1088,29 @@ client.on('interactionCreate', async interaction => {
       date: new Date().toLocaleDateString()
     });
 
-    await interaction.reply({ content: `⚠️ Issued a warning to **${targetUser.tag}**. Reason: ${reason}` });
+    await interaction.reply({ content: `⚠️ Successfully issued a warning to **${targetUser.tag}**. Reason: ${reason}` });
     
     try {
-      await targetUser.send(`⚠️ You have been warned in **${guild.name}** for: **${reason}**`);
+      await targetUser.send(`⚠️ You have received a formal warning in **${guild.name}** for: **${reason}**`);
     } catch (err) {
       // DMs closed
     }
   }
   else if (commandName === 'warnings') {
     if (!member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const targetUser = options.getUser('user');
     const warns = userWarnings.get(targetUser.id) || [];
 
     if (warns.length === 0) {
-      return interaction.reply({ content: `✅ **${targetUser.tag}** has no active warnings.`, flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: `✅ **${targetUser.tag}** has no active warnings on record.`, flags: MessageFlags.Ephemeral });
     }
 
     const warnList = warns.map((w, index) => `**${index + 1}.** ${w.reason} (Moderator: ${w.moderator}, Date: ${w.date})`).join('\n');
     const embed = new EmbedBuilder()
       .setColor('#FFCC00')
-      .setTitle(`⚠️ Warnings for ${targetUser.tag}`)
+      .setTitle(`⚠️ Active Warnings for ${targetUser.tag}`)
       .setDescription(warnList)
       .setTimestamp();
 
@@ -1034,26 +1118,26 @@ client.on('interactionCreate', async interaction => {
   }
   else if (commandName === 'nick') {
     if (!member.permissions.has(PermissionFlagsBits.ManageNicknames)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const targetUser = options.getUser('user');
     const nickname = options.getString('nickname') || null;
     const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
 
     if (!targetMember) {
-      return interaction.reply({ content: 'Member not found!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: 'Target member could not be found.', flags: MessageFlags.Ephemeral });
     }
 
     try {
       await targetMember.setNickname(nickname);
       await interaction.reply({ content: `Successfully updated nickname for **${targetUser.tag}**.` });
     } catch (err) {
-      await interaction.reply({ content: `Failed to change nickname. Ensure my role is higher than the target user's role.`, flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: 'Failed to modify nickname. Ensure my role hierarchy is positioned above the target user.', flags: MessageFlags.Ephemeral });
     }
   }
   else if (commandName === 'ticketsetup') {
     if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const title = options.getString('title');
     const desc = options.getString('description');
@@ -1064,11 +1148,11 @@ client.on('interactionCreate', async interaction => {
     
     const embed = new EmbedBuilder().setTitle(title).setDescription(desc);
     await channel.send({ embeds: [embed], components: [row] });
-    await interaction.reply({ content: 'Ticket panel deployed!', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Support ticket panel deployed successfully.', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'transcript') {
     if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const messages = await channel.messages.fetch({ limit: 100 });
@@ -1078,72 +1162,72 @@ client.on('interactionCreate', async interaction => {
   }
   else if (commandName === 'setwelcome') {
     if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     config.welcomeChannelId = options.getChannel('channel').id;
-    await interaction.reply({ content: 'Welcome channel set!', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Welcome channel configured successfully.', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'setleave') {
     if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     config.leaveChannelId = options.getChannel('channel').id;
-    await interaction.reply({ content: 'Leave channel set!', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Leave channel configured successfully.', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'automod') {
     if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     config.autoModEnabled = (options.getString('status') === 'on');
-    await interaction.reply({ content: 'AutoMod updated!', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'AutoMod configurations updated successfully.', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'giveaway') {
     if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const prize = options.getString('prize');
     const durationMs = parseTime(options.getString('time') === 'custom' ? options.getString('custom_time') : options.getString('time'));
     
     if (!durationMs) {
-      return interaction.reply({ content: 'Invalid time duration provided!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: 'Invalid time duration syntax provided.', flags: MessageFlags.Ephemeral });
     }
 
-    const sentMsg = await channel.send({ content: `🎉 Giveaway for **${prize}** started!` });
+    const sentMsg = await channel.send({ content: `🎉 Giveaway initiated for **${prize}**!` });
     activeGiveaways.set(sentMsg.id, { prize, participants: new Set() });
     
-    await interaction.reply({ content: 'Giveaway started!', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Giveaway started successfully.', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'notify') {
     if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     ytSubscriptions.set(options.getString('username'), { discordChannelId: options.getChannel('channel').id, lastVideoId: null });
-    await interaction.reply({ content: 'Notify setup complete!', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'YouTube notification subscription configured successfully.', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'reactionrole') {
     if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const role1 = options.getRole('role1');
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`role_${role1.id}`).setLabel(role1.name).setStyle(ButtonStyle.Primary)
     );
     
-    await channel.send({ embeds: [new EmbedBuilder().setTitle('Reaction Roles')], components: [row] });
-    await interaction.reply({ content: 'Panel sent!', flags: MessageFlags.Ephemeral });
+    await channel.send({ embeds: [new EmbedBuilder().setTitle('Reaction Role Panel')], components: [row] });
+    await interaction.reply({ content: 'Reaction role panel deployed.', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'embed') {
     if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     await channel.send({ 
       embeds: [new EmbedBuilder().setTitle(options.getString('title')).setDescription(options.getString('description'))] 
     });
-    await interaction.reply({ content: 'Embed sent!', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Custom embed dispatched successfully.', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'embed-advanced') {
     if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const title = options.getString('title');
     const description = options.getString('description');
@@ -1160,11 +1244,11 @@ client.on('interactionCreate', async interaction => {
     if (footer) embed.setFooter({ text: footer });
 
     await channel.send({ embeds: [embed] });
-    await interaction.reply({ content: 'Advanced embed sent!', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Advanced embed dispatched successfully.', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'poll-advanced') {
     if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
     const question = options.getString('question');
     const opt1 = options.getString('option1');
@@ -1178,7 +1262,7 @@ client.on('interactionCreate', async interaction => {
 
     const embed = new EmbedBuilder()
       .setColor('#5865F2')
-      .setTitle('📊 Advanced Poll')
+      .setTitle('📊 Advanced Voting Poll')
       .setDescription(desc)
       .setTimestamp();
 
@@ -1188,7 +1272,7 @@ client.on('interactionCreate', async interaction => {
     if (opt3) await pollMessage.react('🇨');
     if (opt4) await pollMessage.react('🇩');
 
-    await interaction.reply({ content: 'Advanced poll created!', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Advanced voting poll created successfully.', flags: MessageFlags.Ephemeral });
   }
 });
 
