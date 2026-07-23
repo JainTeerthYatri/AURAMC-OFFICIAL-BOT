@@ -44,8 +44,8 @@ const activeGiveaways = new Map();
 const ytSubscriptions = new Map();
 const snipeCache = new Map(); 
 const afkUsers = new Map();
-const userWarnings = new Map(); // Store user warnings: userId -> array of warnings
-const activeTicketSetups = new Map(); // Store active live interactive ticket builder sessions
+const userWarnings = new Map(); 
+const activeTicketSetups = new Map(); 
 
 function parseTime(timeStr) {
   const match = timeStr.toLowerCase().match(/^(\d+)([mhd])$/);
@@ -72,7 +72,6 @@ client.once('clientReady', async () => {
   console.log(`Logged in as ${client.user.tag}!`);
 
   const commands = [
-    // ================= PUBLIC COMMANDS (Visible to Everyone) =================
     new SlashCommandBuilder()
       .setName('help')
       .setDescription('Displays the interactive professional command directory and categories'),
@@ -144,8 +143,6 @@ client.once('clientReady', async () => {
           .setRequired(true)
       ),
 
-
-    // ================= ADMIN & MODERATION COMMANDS (Visible only to Admins/Mods) =================
     new SlashCommandBuilder()
       .setName('snipe')
       .setDescription('Recovers the last deleted message in this channel')
@@ -154,31 +151,15 @@ client.once('clientReady', async () => {
     new SlashCommandBuilder()
       .setName('poll')
       .setDescription('Creates a voting poll')
-      .addStringOption(option => 
-        option.setName('question')
-          .setDescription('The poll question')
-          .setRequired(true)
-      )
-      .addStringOption(option => 
-        option.setName('option1')
-          .setDescription('First option')
-          .setRequired(true)
-      )
-      .addStringOption(option => 
-        option.setName('option2')
-          .setDescription('Second option')
-          .setRequired(true)
-      )
+      .addStringOption(option => option.setName('question').setDescription('The poll question').setRequired(true))
+      .addStringOption(option => option.setName('option1').setDescription('First option').setRequired(true))
+      .addStringOption(option => option.setName('option2').setDescription('Second option').setRequired(true))
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
     new SlashCommandBuilder()
       .setName('say')
       .setDescription('Makes the bot repeat your message')
-      .addStringOption(option => 
-        option.setName('message')
-          .setDescription('The message for the bot to send')
-          .setRequired(true)
-      )
+      .addStringOption(option => option.setName('message').setDescription('The message for the bot to send').setRequired(true))
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
     new SlashCommandBuilder()
@@ -193,131 +174,68 @@ client.once('clientReady', async () => {
         option.setName('action')
           .setDescription('Choose Lock or Unlock')
           .setRequired(true)
-          .addChoices(
-            { name: 'Lock', value: 'lock' },
-            { name: 'Unlock', value: 'unlock' }
-          )
+          .addChoices({ name: 'Lock', value: 'lock' }, { name: 'Unlock', value: 'unlock' })
       )
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
       .setName('purge')
       .setDescription('Deletes a specified number of messages')
-      .addIntegerOption(option =>
-        option.setName('count')
-          .setDescription('Number of messages to delete (1-100)')
-          .setRequired(true)
-      )
+      .addIntegerOption(option => option.setName('count').setDescription('Number of messages to delete (1-100)').setRequired(true))
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
     new SlashCommandBuilder()
       .setName('slowmode')
       .setDescription('Sets the slowmode delay for the current channel')
-      .addIntegerOption(option => 
-        option.setName('seconds')
-          .setDescription('Delay in seconds (0 to disable)')
-          .setRequired(true)
-      )
+      .addIntegerOption(option => option.setName('seconds').setDescription('Delay in seconds (0 to disable)').setRequired(true))
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
 
     new SlashCommandBuilder()
       .setName('timeout')
       .setDescription('Temporarily timeout a member')
-      .addUserOption(option => 
-        option.setName('user')
-          .setDescription('The user to timeout')
-          .setRequired(true)
-      )
-      .addIntegerOption(option => 
-        option.setName('minutes')
-          .setDescription('Duration in minutes')
-          .setRequired(true)
-      )
-      .addStringOption(option => 
-        option.setName('reason')
-          .setDescription('Reason for timeout')
-          .setRequired(false)
-      )
+      .addUserOption(option => option.setName('user').setDescription('The user to timeout').setRequired(true))
+      .addIntegerOption(option => option.setName('minutes').setDescription('Duration in minutes').setRequired(true))
+      .addStringOption(option => option.setName('reason').setDescription('Reason for timeout').setRequired(false))
       .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
     new SlashCommandBuilder()
       .setName('kick')
       .setDescription('Kick a member from the server')
-      .addUserOption(option => 
-        option.setName('user')
-          .setDescription('The user to kick')
-          .setRequired(true)
-      )
-      .addStringOption(option => 
-        option.setName('reason')
-          .setDescription('Reason for kicking')
-          .setRequired(false)
-      )
+      .addUserOption(option => option.setName('user').setDescription('The user to kick').setRequired(true))
+      .addStringOption(option => option.setName('reason').setDescription('Reason for kicking').setRequired(false))
       .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
 
     new SlashCommandBuilder()
       .setName('ban')
       .setDescription('Ban a member from the server')
-      .addUserOption(option => 
-        option.setName('user')
-          .setDescription('The user to ban')
-          .setRequired(true)
-      )
-      .addStringOption(option => 
-        option.setName('reason')
-          .setDescription('Reason for banning')
-          .setRequired(false)
-      )
+      .addUserOption(option => option.setName('user').setDescription('The user to ban').setRequired(true))
+      .addStringOption(option => option.setName('reason').setDescription('Reason for banning').setRequired(false))
       .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
 
     new SlashCommandBuilder()
       .setName('unban')
       .setDescription('Unban a user from the server using their User ID')
-      .addStringOption(option => 
-        option.setName('userid')
-          .setDescription('The User ID of the person to unban')
-          .setRequired(true)
-      )
+      .addStringOption(option => option.setName('userid').setDescription('The User ID of the person to unban').setRequired(true))
       .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
 
     new SlashCommandBuilder()
       .setName('warn')
       .setDescription('Issue a formal warning to a member')
-      .addUserOption(option => 
-        option.setName('user')
-          .setDescription('The user to warn')
-          .setRequired(true)
-      )
-      .addStringOption(option => 
-        option.setName('reason')
-          .setDescription('Reason for the warning')
-          .setRequired(true)
-      )
+      .addUserOption(option => option.setName('user').setDescription('The user to warn').setRequired(true))
+      .addStringOption(option => option.setName('reason').setDescription('Reason for the warning').setRequired(true))
       .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
     new SlashCommandBuilder()
       .setName('warnings')
       .setDescription('Check active warnings for a member')
-      .addUserOption(option => 
-        option.setName('user')
-          .setDescription('The user to check warnings for')
-          .setRequired(true)
-      )
+      .addUserOption(option => option.setName('user').setDescription('The user to check warnings for').setRequired(true))
       .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
 
     new SlashCommandBuilder()
       .setName('nick')
       .setDescription('Change the nickname of a server member')
-      .addUserOption(option => 
-        option.setName('user')
-          .setDescription('The user to target')
-          .setRequired(true)
-      )
-      .addStringOption(option => 
-        option.setName('nickname')
-          .setDescription('The new nickname (leave blank to reset)')
-          .setRequired(false)
-      )
+      .addUserOption(option => option.setName('user').setDescription('The user to target').setRequired(true))
+      .addStringOption(option => option.setName('nickname').setDescription('The new nickname (leave blank to reset)').setRequired(false))
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageNicknames),
 
     new SlashCommandBuilder()
@@ -333,21 +251,13 @@ client.once('clientReady', async () => {
     new SlashCommandBuilder()
       .setName('setwelcome')
       .setDescription('Sets the channel for welcome messages')
-      .addChannelOption(option => 
-        option.setName('channel')
-          .setDescription('Select the welcome channel')
-          .setRequired(true)
-      )
+      .addChannelOption(option => option.setName('channel').setDescription('Select the welcome channel').setRequired(true))
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
       .setName('setleave')
       .setDescription('Sets the channel for leave messages')
-      .addChannelOption(option => 
-        option.setName('channel')
-          .setDescription('Select the leave channel')
-          .setRequired(true)
-      )
+      .addChannelOption(option => option.setName('channel').setDescription('Select the leave channel').setRequired(true))
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
@@ -357,21 +267,14 @@ client.once('clientReady', async () => {
         option.setName('status')
           .setDescription('Turn Auto-Mod On or Off')
           .setRequired(true)
-          .addChoices(
-            { name: 'Enable', value: 'on' },
-            { name: 'Disable', value: 'off' }
-          )
+          .addChoices({ name: 'Enable', value: 'on' }, { name: 'Disable', value: 'off' })
       )
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
       .setName('giveaway')
-      .setDescription('Host an advanced giveaway with preset or custom time')
-      .addStringOption(option => 
-        option.setName('prize')
-          .setDescription('The prize being given away')
-          .setRequired(true)
-      )
+      .setDescription('Host a professional interactive giveaway session')
+      .addStringOption(option => option.setName('prize').setDescription('The prize being given away').setRequired(true))
       .addStringOption(option =>
         option.setName('time')
           .setDescription('Select a preset time OR select Custom')
@@ -386,16 +289,8 @@ client.once('clientReady', async () => {
             { name: 'Custom Time', value: 'custom' }
           )
       )
-      .addStringOption(option => 
-        option.setName('custom_time')
-          .setDescription('Example: 15m, 2h (Only if Custom is selected)')
-          .setRequired(false)
-      )
-      .addIntegerOption(option => 
-        option.setName('winners')
-          .setDescription('Number of winners (Default: 1)')
-          .setRequired(false)
-      )
+      .addStringOption(option => option.setName('custom_time').setDescription('Example: 15m, 2h (Only if Custom is selected)').setRequired(false))
+      .addIntegerOption(option => option.setName('winners').setDescription('Number of winners (Default: 1)').setRequired(false))
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
@@ -405,52 +300,24 @@ client.once('clientReady', async () => {
         subcommand
           .setName('add')
           .setDescription('Auto-post latest YouTube videos to a Discord channel')
-          .addStringOption(option => 
-            option.setName('username')
-              .setDescription('YouTube handle')
-              .setRequired(true)
-          )
-          .addChannelOption(option => 
-            option.setName('channel')
-              .setDescription('Discord channel')
-              .setRequired(true)
-          )
+          .addStringOption(option => option.setName('username').setDescription('YouTube handle').setRequired(true))
+          .addChannelOption(option => option.setName('channel').setDescription('Discord channel').setRequired(true))
       )
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
       .setName('reactionrole')
       .setDescription('Sends the self-assignable role panel')
-      .addRoleOption(option => 
-        option.setName('role1')
-          .setDescription('First role')
-          .setRequired(true)
-      )
-      .addRoleOption(option => 
-        option.setName('role2')
-          .setDescription('Second role')
-          .setRequired(true)
-      )
+      .addRoleOption(option => option.setName('role1').setDescription('First role').setRequired(true))
+      .addRoleOption(option => option.setName('role2').setDescription('Second role').setRequired(true))
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
       .setName('embed')
       .setDescription('Creates a custom embed message in the channel')
-      .addStringOption(option => 
-        option.setName('title')
-          .setDescription('The embed title')
-          .setRequired(true)
-      )
-      .addStringOption(option => 
-        option.setName('description')
-          .setDescription('The embed description')
-          .setRequired(true)
-      )
-      .addStringOption(option => 
-        option.setName('color')
-          .setDescription('Hex color code (e.g., #FF0000)')
-          .setRequired(false)
-      )
+      .addStringOption(option => option.setName('title').setDescription('The embed title').setRequired(true))
+      .addStringOption(option => option.setName('description').setDescription('The embed description').setRequired(true))
+      .addStringOption(option => option.setName('color').setDescription('Hex color code (e.g., #FF0000)').setRequired(false))
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
     new SlashCommandBuilder()
@@ -637,7 +504,7 @@ client.on('interactionCreate', async interaction => {
     // --- LIVE INTERACTIVE TICKET BUILDER LOGIC ---
     if (interaction.customId.startsWith('ts_')) {
       const parts = interaction.customId.split('_');
-      const action = parts[1]; // title, desc, addbtn, finish
+      const action = parts[1]; 
       const panelId = parts[2];
       
       const setupData = activeTicketSetups.get(panelId);
@@ -807,20 +674,20 @@ client.on('interactionCreate', async interaction => {
       setTimeout(() => interaction.channel.delete().catch(() => {}), 5000);
     }
 
-    if (interaction.customId.startsWith('enter_gwy_')) {
-      const messageId = interaction.customId.split('_')[2];
-      const giveaway = activeGiveaways.get(messageId);
+    // --- UPGRADED PROFESSIONAL GIVEAWAY ENTRY BUTTON ---
+    if (interaction.customId === 'gwy_enter_btn') {
+      const giveaway = activeGiveaways.get(interaction.message.id);
       
       if (!giveaway) {
-        return interaction.reply({ content: 'This giveaway session has already concluded.', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: '❌ This giveaway session has already concluded.', flags: MessageFlags.Ephemeral });
       }
       
       if (giveaway.participants.has(interaction.user.id)) {
-        return interaction.reply({ content: 'You are already registered for this giveaway.', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: '⚠️ You are already registered for this giveaway.', flags: MessageFlags.Ephemeral });
       }
       
       giveaway.participants.add(interaction.user.id);
-      await interaction.reply({ content: '🎉 You have successfully entered the giveaway!', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: '✅ You have successfully entered the giveaway! Best of luck!', flags: MessageFlags.Ephemeral });
     }
 
     if (interaction.customId.startsWith('role_')) {
@@ -1019,7 +886,7 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  // --- Admin/Mod Handlers (With Strict Verification) ---
+  // --- Admin/Mod Handlers ---
   else if (commandName === 'snipe') {
     if (!member.permissions.has(PermissionFlagsBits.ManageMessages)) {
       return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
@@ -1166,9 +1033,7 @@ client.on('interactionCreate', async interaction => {
     
     try {
       await targetUser.send(`⚠️ You have received a formal warning in **${guild.name}** for: **${reason}**`);
-    } catch (err) {
-      // DMs closed
-    }
+    } catch (err) {}
   }
   else if (commandName === 'warnings') {
     if (!member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
@@ -1277,17 +1142,60 @@ client.on('interactionCreate', async interaction => {
     if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
       return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
-    const prize = options.getString('prize');
-    const durationMs = parseTime(options.getString('time') === 'custom' ? options.getString('custom_time') : options.getString('time'));
     
+    const prize = options.getString('prize');
+    const timeArg = options.getString('time');
+    const customTime = options.getString('custom_time');
+    const winnerCount = options.getInteger('winners') || 1;
+
+    const rawTime = timeArg === 'custom' ? customTime : timeArg;
+    const durationMs = parseTime(rawTime);
+
     if (!durationMs) {
-      return interaction.reply({ content: 'Invalid time duration syntax provided.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ Invalid time duration syntax provided. (e.g., 10m, 1h, 1d)', flags: MessageFlags.Ephemeral });
     }
 
-    const sentMsg = await channel.send({ content: `🎉 Giveaway initiated for **${prize}**!` });
-    activeGiveaways.set(sentMsg.id, { prize, participants: new Set() });
-    
-    await interaction.reply({ content: 'Giveaway started successfully.', flags: MessageFlags.Ephemeral });
+    const endsAt = Math.floor((Date.now() + durationMs) / 1000);
+
+    const embed = new EmbedBuilder()
+      .setColor('#FF73FA')
+      .setTitle('🎉 PROFESSIONAL GIVEAWAY 🎉')
+      .setDescription(`Win **${prize}**!\n\nClick the button below to participate in this giveaway session.\n\n⏱️ **Ends:** <t:${endsAt}:R> (<t:${endsAt}:F>)\n👑 **Winners:** \`${winnerCount}\`\n🎁 **Hosted By:** ${interaction.user}`)
+      .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('gwy_enter_btn')
+        .setLabel('🎉 Enter Giveaway')
+        .setStyle(ButtonStyle.Success)
+    );
+
+    const sentMsg = await channel.send({ embeds: [embed], components: [row] });
+    activeGiveaways.set(sentMsg.id, { prize, winners: winnerCount, participants: new Set(), host: interaction.user.id });
+
+    await interaction.reply({ content: '✅ Advanced giveaway successfully initiated.', flags: MessageFlags.Ephemeral });
+
+    setTimeout(async () => {
+      const giveawayData = activeGiveaways.get(sentMsg.id);
+      if (!giveawayData) return;
+
+      const participantsArr = Array.from(giveawayData.participants);
+      if (participantsArr.length === 0) {
+        await channel.send(`❌ Giveaway for **${prize}** has concluded. Unfortunately, no valid participants entered.`);
+        activeGiveaways.delete(sentMsg.id);
+        return;
+      }
+
+      const winners = [];
+      for (let i = 0; i < Math.min(winnerCount, participantsArr.length); i++) {
+        const randomIndex = Math.floor(Math.random() * participantsArr.length);
+        winners.push(participantsArr.splice(randomIndex, 1)[0]);
+      }
+
+      const winnerMentions = winners.map(id => `<@${id}>`).join(', ');
+      await channel.send(`🎊 **GIVEAWAY CONCLUDED!** 🎊\nCongratulations ${winnerMentions}! You won **${prize}**! Please contact <@${giveawayData.host}> to claim your reward.`);
+      activeGiveaways.delete(sentMsg.id);
+    }, durationMs);
   }
   else if (commandName === 'notify') {
     if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
