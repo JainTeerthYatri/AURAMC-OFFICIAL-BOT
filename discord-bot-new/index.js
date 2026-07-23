@@ -788,7 +788,7 @@ client.on('interactionCreate', async interaction => {
       .setImage(avatarUrl);
       
     await interaction.reply({ embeds: [embed] });
-  }else if (commandName === 'serverinfo') {
+  else if (commandName === 'serverinfo') {
     const owner = await guild.fetchOwner();
     const channels = guild.channels.cache;
     const roles = guild.roles.cache.size;
@@ -838,6 +838,7 @@ client.on('interactionCreate', async interaction => {
       
     await interaction.reply({ embeds: [embed] });
   }
+    
   else if (commandName === 'remind') {
     const minutes = options.getInteger('minutes');
     const reminderMessage = options.getString('message');
