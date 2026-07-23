@@ -45,6 +45,7 @@ const ytSubscriptions = new Map();
 const snipeCache = new Map(); 
 const afkUsers = new Map();
 const userWarnings = new Map(); // Store user warnings: userId -> array of warnings
+const activeTicketSetups = new Map(); // Store active live interactive ticket builder sessions
 
 function parseTime(timeStr) {
   const match = timeStr.toLowerCase().match(/^(\d+)([mhd])$/);
@@ -321,37 +322,7 @@ client.once('clientReady', async () => {
 
     new SlashCommandBuilder()
       .setName('ticketsetup')
-      .setDescription('Creates a customizable support ticket panel')
-      .addStringOption(option => 
-        option.setName('title')
-          .setDescription('Title of the ticket panel')
-          .setRequired(true)
-      )
-      .addStringOption(option => 
-        option.setName('description')
-          .setDescription('Description inside the ticket panel')
-          .setRequired(true)
-      )
-      .addStringOption(option => 
-        option.setName('button1')
-          .setDescription('Name for the 1st ticket button')
-          .setRequired(true)
-      )
-      .addStringOption(option => 
-        option.setName('button2')
-          .setDescription('Name for the 2nd ticket button (Optional)')
-          .setRequired(false)
-      )
-      .addStringOption(option => 
-        option.setName('button3')
-          .setDescription('Name for the 3rd ticket button (Optional)')
-          .setRequired(false)
-      )
-      .addStringOption(option => 
-        option.setName('button4')
-          .setDescription('Name for the 4th ticket button (Optional)')
-          .setRequired(false)
-      )
+      .setDescription('Deploys an interactive live ticket builder control panel')
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
@@ -662,6 +633,109 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (interaction.isButton()) {
+    
+    // --- LIVE INTERACTIVE TICKET BUILDER LOGIC ---
+    if (interaction.customId.startsWith('ts_')) {
+      const parts = interaction.customId.split('_');
+      const action = parts[1]; // title, desc, addbtn, finish
+      const panelId = parts[2];
+      
+      const setupData = activeTicketSetups.get(panelId);
+      if (!setupData) {
+        return interaction.reply({ content: '❌ This setup session has expired or is invalid.', flags: MessageFlags.Ephemeral });
+      }
+
+      const panelMessage = await interaction.channel.messages.fetch(panelId).catch(() => null);
+      if (!panelMessage) return;
+
+      if (action === 'finish') {
+        const controlMessage = await interaction.channel.messages.fetch(setupData.controlMessageId).catch(() => null);
+        if (controlMessage) await controlMessage.delete();
+        activeTicketSetups.delete(panelId);
+        return interaction.reply({ content: '✅ Panel setup has been finalized successfully.', flags: MessageFlags.Ephemeral });
+      }
+
+      const askForInput = async (promptText) => {
+        await interaction.reply({ content: promptText, fetchReply: true });
+        
+        try {
+          const filter = m => m.author.id === interaction.user.id;
+          const collected = await interaction.channel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+          const userMessage = collected.first();
+          const content = userMessage.content;
+          
+          await userMessage.delete().catch(() => {});
+          await interaction.deleteReply().catch(() => {});
+          
+          return content;
+        } catch (error) {
+          await interaction.editReply({ content: '❌ Request timed out. Please click the button to try again.' });
+          return null;
+        }
+      };
+
+      if (action === 'title') {
+        const newTitle = await askForInput('📝 Please type the **Title** for this ticket panel in the chat below:');
+        if (newTitle) {
+          setupData.title = newTitle;
+          const embed = EmbedBuilder.from(panelMessage.embeds[0]).setTitle(setupData.title);
+          await panelMessage.edit({ embeds: [embed] });
+        }
+      }
+
+      if (action === 'desc') {
+        const newDesc = await askForInput('📝 Please type the **Description** for this ticket panel in the chat below:');
+        if (newDesc) {
+          setupData.desc = newDesc;
+          const embed = EmbedBuilder.from(panelMessage.embeds[0]).setDescription(setupData.desc);
+          await panelMessage.edit({ embeds: [embed] });
+        }
+      }
+
+      if (action === 'addbtn') {
+        if (setupData.buttons.length >= 25) {
+          return interaction.reply({ content: '❌ You have reached the maximum Discord limit of 25 buttons per message.', flags: MessageFlags.Ephemeral });
+        }
+
+        const btnName = await askForInput('🔘 Please type the **Label/Name** for your new ticket button (e.g., Support, Reports):');
+        if (!btnName) return;
+
+        const botPrompt = await interaction.channel.send('🎨 Please type the **Color** for this button in professional English. Valid options: `blue`, `green`, `red`, `grey`.');
+        
+        try {
+          const filter = m => m.author.id === interaction.user.id;
+          const collectedColor = await interaction.channel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+          const colorMsg = collectedColor.first();
+          const colorInput = colorMsg.content.toLowerCase();
+          
+          await colorMsg.delete().catch(() => {});
+          await botPrompt.delete().catch(() => {});
+
+          let btnStyle = ButtonStyle.Secondary; 
+          if (colorInput.includes('blue')) btnStyle = ButtonStyle.Primary;
+          if (colorInput.includes('green')) btnStyle = ButtonStyle.Success;
+          if (colorInput.includes('red')) btnStyle = ButtonStyle.Danger;
+
+          setupData.buttons.push({ label: btnName, style: btnStyle, customId: `ticket_btn_${btnName.replace(/\s+/g, '')}` });
+
+          const actionRows = [];
+          for (let i = 0; i < setupData.buttons.length; i += 5) {
+            const chunk = setupData.buttons.slice(i, i + 5);
+            const row = new ActionRowBuilder();
+            chunk.forEach(btn => {
+              row.addComponents(new ButtonBuilder().setCustomId(btn.customId).setLabel(btn.label).setStyle(btn.style));
+            });
+            actionRows.push(row);
+          }
+
+          await panelMessage.edit({ components: actionRows });
+        } catch (error) {
+          await botPrompt.edit('❌ Request timed out. Button creation cancelled.').then(m => setTimeout(() => m.delete(), 3000));
+        }
+      }
+      return;
+    }
+
     if (interaction.customId.startsWith('ticket_btn_')) {
       const category = interaction.customId.replace('ticket_btn_', '');
       const guild = interaction.guild;
@@ -1139,16 +1213,34 @@ client.on('interactionCreate', async interaction => {
     if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
       return interaction.reply({ content: '❌ You do not have sufficient permissions to execute this command.', flags: MessageFlags.Ephemeral });
     }
-    const title = options.getString('title');
-    const desc = options.getString('description');
     
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('ticket_btn_Support').setLabel('Support').setStyle(ButtonStyle.Secondary)
+    const emptyEmbed = new EmbedBuilder()
+      .setColor('#2b2d31')
+      .setTitle('⚙️ Panel Title (Pending)')
+      .setDescription('Panel description is currently pending configuration.');
+
+    const panelMessage = await channel.send({ embeds: [emptyEmbed] });
+
+    const controlRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`ts_title_${panelMessage.id}`).setLabel('Set Title').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`ts_desc_${panelMessage.id}`).setLabel('Set Description').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`ts_addbtn_${panelMessage.id}`).setLabel('Add Ticket Button').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`ts_finish_${panelMessage.id}`).setLabel('Finish Setup').setStyle(ButtonStyle.Success)
     );
-    
-    const embed = new EmbedBuilder().setTitle(title).setDescription(desc);
-    await channel.send({ embeds: [embed], components: [row] });
-    await interaction.reply({ content: 'Support ticket panel deployed successfully.', flags: MessageFlags.Ephemeral });
+
+    const controlMessage = await channel.send({ 
+      content: '🛠️ **Interactive Ticket Builder Control Panel**\nUse the modules below to configure your panel live. Click **Finish Setup** when done.', 
+      components: [controlRow] 
+    });
+
+    activeTicketSetups.set(panelMessage.id, { 
+      controlMessageId: controlMessage.id,
+      title: '⚙️ Panel Title (Pending)', 
+      desc: 'Panel description is currently pending configuration.', 
+      buttons: [] 
+    });
+
+    await interaction.reply({ content: '✅ Interactive builder deployed successfully in the channel.', flags: MessageFlags.Ephemeral });
   }
   else if (commandName === 'transcript') {
     if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) {
