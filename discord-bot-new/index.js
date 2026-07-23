@@ -109,7 +109,7 @@ client.once('clientReady', async () => {
 
     new SlashCommandBuilder()
       .setName('serverinfo')
-      .setDescription('Displays server statistics'),
+      .setDescription('Displays detailed server statistics'),
 
     new SlashCommandBuilder()
       .setName('userinfo')
@@ -788,6 +788,7 @@ client.on('interactionCreate', async interaction => {
       .setImage(avatarUrl);
       
     await interaction.reply({ embeds: [embed] });
+  }
   else if (commandName === 'serverinfo') {
     const owner = await guild.fetchOwner();
     const channels = guild.channels.cache;
@@ -838,7 +839,6 @@ client.on('interactionCreate', async interaction => {
       
     await interaction.reply({ embeds: [embed] });
   }
-    
   else if (commandName === 'remind') {
     const minutes = options.getInteger('minutes');
     const reminderMessage = options.getString('message');
